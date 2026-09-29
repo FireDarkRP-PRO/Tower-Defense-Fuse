@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TD Fuse – Tower Defense à fusion</title>
+<title>Constellations – Tower Defense à fusion</title>
 <style>
 :root{--void:#080a1c;--panel:#12153a;--line:#2b3070;--gold:#ffd84a;--text:#e8ecff}
 *{box-sizing:border-box}
@@ -61,7 +61,7 @@ button.on{border-color:var(--gold);background:#1d2160}
   <div id="cards"></div>
 </div></div>
 <div id="start" class="on"><div id="startbox">
-  <h2 style="margin:0 0 6px">TD Fuse</h2>
+  <h2 style="margin:0 0 6px">Constellations</h2>
   <p>Reprends une partie sauvegardée ou commence une nouvelle partie.</p>
   <div class="row"><button id="startNew">Nouvelle partie</button><button id="startImp">Importer une sauvegarde (.txt)</button></div>
   <input type="file" id="startFile" accept=".txt,.json" style="display:none">
@@ -144,7 +144,7 @@ function exportSave(){
   const data={v:1,coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
     slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
   const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TD-Fuse-sauvegarde.txt';
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='constellations-sauvegarde.txt';
   document.body.appendChild(a);a.click();a.remove();
 }
 let lastImportNote='';
@@ -222,7 +222,7 @@ function startWave(){
 }
 function spawn(k,d0){
   const d=K[k],hp=hpAt(k,g.wave),[x,y]=at(d0);
-  g.en.push({k,d:d0,x,y,hp,mx:hp,sp:d.sp,r:d.r,slowT:0,stT:0,bn:0,bt:0,mk:0,mkT:0,hits:0});
+  g.en.push({k,d:d0,x,y,hp,mx:hp,sp:d.sp,r:d.r,slowT:0,stT:0,bn:0,bt:0,mk:0,mkT:0,hits:0,hurtT:0,kb:0});
 }
 // ---------- Combat ----------
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -231,14 +231,14 @@ function hurt(e,dmg,b){
   if(e.mkT>0)dmg*=1+e.mk;
   dmg*=1-(d.ar||0);
   if(j===5&&e.hp<e.mx*.3)dmg*=1.5+.05*(l-1);
-  e.hp-=dmg;
+  e.hp-=dmg;e.hurtT=1.2;
   if(!d.ims){
     if(j===2)e.slowT=1.6+.2*(l-1);
     if(j===4&&++e.hits%3===0)e.stT=.5+.05*(l-1);
   }
   if(j===1){e.bn=b.dm*.4;e.bt=3+.3*(l-1)}
   if(j===7){e.mk=.25+.02*(l-1);e.mkT=3}
-  if(j===9)e.d=Math.max(0,e.d-(50+5*(l-1)));
+  if(j===9){const room=Math.max(0,240-(e.kb||0)),use=Math.min(50+5*(l-1),room);e.d=Math.max(0,e.d-use);e.kb=(e.kb||0)+use}
 }
 function hit(b){
   const j=b.ty,l=b.lv,e0=b.tg;let list=[e0];
@@ -261,9 +261,9 @@ function update(dt){
   else if(!g.en.length){if(g.autoWave){g.timer-=dt;if(g.timer<=0)startWave()}}
   for(const e of g.en){
     const d=K[e.k];
-    if(e.slowT>0)e.slowT-=dt;if(e.stT>0)e.stT-=dt;if(e.mkT>0)e.mkT-=dt;
+    if(e.slowT>0)e.slowT-=dt;if(e.stT>0)e.stT-=dt;if(e.mkT>0)e.mkT-=dt;if(e.hurtT>0)e.hurtT-=dt;if(e.kb>0)e.kb=Math.max(0,e.kb-25*dt);
     if(e.bt>0){e.bt-=dt;e.hp-=e.bn*dt}
-    if(d.rg&&e.hp>0)e.hp=Math.min(e.mx,e.hp+e.mx*d.rg*dt);
+    if(d.rg&&e.hp>0&&e.hurtT<=0)e.hp=Math.min(e.mx,e.hp+e.mx*d.rg*dt);
     if(e.stT<=0)e.d+=e.sp*(e.slowT>0?.5:1)*dt;
     [e.x,e.y]=at(e.d);
     if(e.d>=tot){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu ou appuie sur R pour rejouer.')}}
