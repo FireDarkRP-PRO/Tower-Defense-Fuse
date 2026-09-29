@@ -141,7 +141,7 @@ function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStor
 addEventListener('beforeunload',save);
 function unlock(t){if(t.lvl>DX.t[t.type]){DX.t[t.type]=t.lvl;save()}}
 function exportSave(){
-  const data={v:1,coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
+  const data={v:1,coins:g.coins,lives:g.lives,wave:(g.wave-1),boxes:g.boxes,autoWave:g.autoWave,
     slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
   const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='constellations-sauvegarde.txt';
