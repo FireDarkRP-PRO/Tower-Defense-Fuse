@@ -61,7 +61,7 @@ button.on{border-color:var(--gold);background:#1d2160}
   <div id="cards"></div>
 </div></div>
 <div id="start" class="on"><div id="startbox">
-  <h2 style="margin:0 0 6px">TD Fuse By FireDarkRP</h2>
+  <h2 style="margin:0 0 6px">TD Fuse by FireDarkRP</h2>
   <p>Reprends une partie sauvegardée ou commence une nouvelle partie.</p>
   <div class="row"><button id="startNew">Nouvelle partie</button><button id="startImp">Importer une sauvegarde (.txt)</button></div>
   <input type="file" id="startFile" accept=".txt,.json" style="display:none">
@@ -71,6 +71,7 @@ button.on{border-color:var(--gold);background:#1d2160}
 const C=document.getElementById('c'),X=C.getContext('2d'),$=id=>document.getElementById(id);
 // ---------- Réglages d'équilibrage ----------
 const TUNE={hp0:22,hpGrow:1.15,dmgGrow:1.35,box0:50,boxStep:6,boxMax:400,up0:20,upGrow:1.5,fuMax:4,rwGrow:.04};
+const WIN_WAVE=30;
 const cap=f=>1+2*f; // limite de niveau selon la fusion : 3, 5, 7, 9
 // ---------- Carte ----------
 const P=[[-40,140],[1000,140],[1000,360],[280,360],[280,580],[1320,580]];
@@ -173,7 +174,7 @@ const upc=t=>Math.round(TUNE.up0*Math.pow(TUNE.upGrow,t.lvl-1)*(1+.3*T[t.type].r
 let g,drag=null,mouse={x:0,y:0},tab='b';const vl={};
 function say(m){$('msg').textContent=m}
 function reset(){
-  g={coins:120,lives:20,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave};
+  g={coins:120,lives:20,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,won:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave};
   S.forEach(s=>s.t=null);
   say('Achète une météorite pour obtenir ta première tour.');
 }
@@ -299,6 +300,7 @@ function update(dt){
     }
   }
   g.en=g.en.filter(e=>!e.dead&&!e.esc);
+  if(!g.won&&g.wave>=WIN_WAVE&&!g.en.length&&!g.q.length){g.won=true;g.paused=true;save()}
   add.forEach(a=>spawn(a[0],a[1]));
   g.bl=g.bl.filter(b=>!b.dead);
   for(const f of g.fx)f.l-=dt;
@@ -421,7 +423,12 @@ function draw(){
     else{X.strokeStyle=f.c;X.globalAlpha=1-p;X.lineWidth=3;X.beginPath();X.arc(f.x,f.y,f.r+(f.mx-f.r)*p,0,7);X.stroke();X.globalAlpha=1}
   }
   if(drag&&drag.moved&&drag.s.t)drawTower(X,mouse.x,mouse.y,drag.s.t,true);
-  if(g.over){
+  if(g.won){
+    X.fillStyle='rgba(8,10,28,.82)';X.fillRect(0,0,1280,720);
+    X.fillStyle='#ffd84a';X.textAlign='center';X.font='bold 56px "Trebuchet MS",sans-serif';X.fillText('Victoire !',640,320);
+    X.fillStyle='#e8ecff';X.font='24px "Trebuchet MS",sans-serif';X.fillText('Tu as défendu le portail jusqu\u2019à la vague '+WIN_WAVE+'.',640,368);
+    X.font='18px "Trebuchet MS",sans-serif';X.fillStyle='#9fb0ff';X.fillText('Clique pour continuer à jouer, sans limite de vagues.',640,402);
+  }else if(g.over){
     X.fillStyle='rgba(8,10,28,.78)';X.fillRect(0,0,1280,720);
     X.fillStyle='#ffd84a';X.textAlign='center';X.font='bold 56px "Trebuchet MS",sans-serif';X.fillText('Portail perdu',640,330);
     X.fillStyle='#e8ecff';X.font='24px "Trebuchet MS",sans-serif';X.fillText('Tu as tenu jusqu\u2019à la vague '+g.wave+'. Clique pour rejouer.',640,380);
@@ -451,7 +458,7 @@ function sheet(){
 }
 function hud(){
   $('co').textContent=g.coins;$('li').textContent=g.lives;$('wa').textContent=g.wave;
-  $('nx').textContent=g.paused?'⏸ Pause':(g.q.length||g.en.length)?'':(g.autoWave?'Prochaine vague dans '+Math.ceil(g.timer)+' s':'Vagues manuelles : Espace pour lancer');
+  $('nx').textContent=g.won?'🏆 Victoire':g.paused?'⏸ Pause':(g.q.length||g.en.length)?'':(g.autoWave?'Prochaine vague dans '+Math.ceil(g.timer)+' s':'Vagues manuelles : Espace pour lancer');
   $('bb').textContent='Météorite '+boxPrice()+'💰 (B)';
   sheet();
 }
@@ -466,6 +473,7 @@ function pos(ev){const r=C.getBoundingClientRect();return{x:(ev.clientX-r.left)*
 const slotAt=p=>S.find(s=>Math.abs(p.x-s.x)<=34&&Math.abs(p.y-s.y)<=34);
 C.addEventListener('mousedown',ev=>{
   if(g.over){reset();return}
+  if(g.won){g.won=false;g.paused=false;return}
   const p=pos(ev),s=slotAt(p);mouse=p;
   if(s&&s.t&&s.t.h<=0)drag={s,moved:false,x0:p.x,y0:p.y};
   else g.sel=s||null;
@@ -491,6 +499,7 @@ function closeStart(){$('start').classList.remove('on');g.paused=false}
 $('bw').onclick=()=>{if(!g.q.length&&!g.en.length&&!g.over)startWave()};
 $('bv').onclick=()=>{g.speed=g.speed===1?2:1;$('bv').textContent='Vitesse ×'+g.speed+' (V)'};
 addEventListener('keydown',ev=>{
+  if(g.won){g.won=false;g.paused=false;return}
   const k=ev.key.toLowerCase();
   if(k==='escape'){if(g.paused)closeDex();return}
   if(k==='e'){g.paused?closeDex():openDex();return}
