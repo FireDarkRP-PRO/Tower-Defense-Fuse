@@ -45,14 +45,6 @@ Le menu pause (touche **E**) donne accès à :
 | E / Échap | Ouvrir ou fermer le menu pause |
 | R | Recommencer (après une défaite) |
 
-## Déploiement sur GitHub Pages
-
-1. Place `index.html` (et `README.md`) à la racine du dépôt, ou dans un sous-dossier dédié.
-2. Dans les paramètres du dépôt GitHub, section **Pages**, choisis la branche et le dossier à publier.
-3. Le jeu est alors accessible à l'URL fournie par GitHub Pages, sans build ni serveur.
-
-Un fichier `meteorite.png` (image carrée, fond transparent) peut être ajouté à côté de `index.html` pour remplacer l'illustration de météorite dessinée par défaut.
-
 ## Technique
 
 - Un seul fichier `index.html` : HTML, CSS et JavaScript (canvas 2D), sans bibliothèque externe.
