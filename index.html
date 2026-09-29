@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Constellations – Tower Defense à fusion</title>
+<title>TD Fuse – Tower Defense à fusion</title>
 <style>
 :root{--void:#080a1c;--panel:#12153a;--line:#2b3070;--gold:#ffd84a;--text:#e8ecff}
 *{box-sizing:border-box}
@@ -61,7 +61,7 @@ button.on{border-color:var(--gold);background:#1d2160}
   <div id="cards"></div>
 </div></div>
 <div id="start" class="on"><div id="startbox">
-  <h2 style="margin:0 0 6px">Constellations</h2>
+  <h2 style="margin:0 0 6px">TD Fuse By FireDarkRP</h2>
   <p>Reprends une partie sauvegardée ou commence une nouvelle partie.</p>
   <div class="row"><button id="startNew">Nouvelle partie</button><button id="startImp">Importer une sauvegarde (.txt)</button></div>
   <input type="file" id="startFile" accept=".txt,.json" style="display:none">
@@ -144,7 +144,7 @@ function exportSave(){
   const data={v:1,coins:g.coins,lives:g.lives,wave:(g.wave-1),boxes:g.boxes,autoWave:g.autoWave,
     slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
   const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='constellations-sauvegarde.txt';
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TD-Fuse-sauvegarde.txt';
   document.body.appendChild(a);a.click();a.remove();
 }
 let lastImportNote='';
