@@ -141,7 +141,7 @@ function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStor
 addEventListener('beforeunload',save);
 function unlock(t){if(t.lvl>DX.t[t.type]){DX.t[t.type]=t.lvl;save()}}
 function exportSave(){
-  const data={v:1,coins:g.coins,lives:g.lives,wave:(g.wave-1),boxes:g.boxes,autoWave:g.autoWave,
+  const data={v:2,coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
     slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
   const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TD-Fuse-sauvegarde.txt';
@@ -152,8 +152,9 @@ function applySave(data){
   if(!data||typeof data!=='object'||!Array.isArray(data.slots))return false;
   g.coins=+data.coins||0;g.lives=data.lives>0?data.lives:20;g.boxes=+data.boxes||0;
   g.autoWave=data.autoWave!==false;SET.autoWave=g.autoWave;
-  let w=+data.wave||0;lastImportNote='';
-  if(w<PROG.best){lastImportNote=' Cette sauvegarde correspond à la vague '+w+', déjà dépassée dans ce navigateur ; elle reprend à la vague '+PROG.best+' pour éviter de refarmer une vague terminée.';w=PROG.best}
+  // L'import doit respecter la vague du fichier, indépendamment de la progression
+  // enregistrée localement dans ce navigateur.
+  const w=Math.max(0,Number(data.wave-1)||0);lastImportNote='';
   g.wave=w;PROG.best=Math.max(PROG.best,w);
   g.en=[];g.bl=[];g.fx=[];g.q=[];g.cd=0;g.timer=15;g.sel=null;g.over=false;
   S.forEach((s,i)=>{const d=data.slots[i];s.t=(d&&T[d.type])?{type:d.type,fu:Math.max(1,d.fu|0),lvl:Math.max(1,d.lvl|0),h:0,h0:0,cool:0,inv:+d.inv||0,n:0}:null});
