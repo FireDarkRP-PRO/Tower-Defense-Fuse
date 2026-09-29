@@ -27,8 +27,13 @@ button:hover{border-color:var(--gold)}
 button:focus-visible{outline:3px solid var(--gold)}
 button:disabled{opacity:.45;cursor:default}
 button.on{border-color:var(--gold);background:#1d2160}
-#dex{position:fixed;inset:0;background:rgba(8,10,28,.93);display:none;align-items:center;justify-content:center;z-index:5}
-#dex.on{display:flex}
+#dex,#start{position:fixed;inset:0;background:rgba(8,10,28,.93);display:none;align-items:center;justify-content:center;z-index:5}
+#dex.on,#start.on{display:flex}
+#startbox{width:min(440px,92vw);background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:22px;text-align:center}
+#startbox p{color:#c4cbf5}
+.opt{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:15px}
+.opt input{width:18px;height:18px}
+.hint{color:#9fb0ff;font-size:13px;min-height:18px}
 #dexbox{width:min(1040px,94vw);max-height:90vh;overflow:auto;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:18px}
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:14px}
 .card{border:2px solid var(--line);border-radius:10px;padding:10px;background:#0b0d26;font-size:14px;line-height:1.5}
@@ -50,10 +55,17 @@ button.on{border-color:var(--gold);background:#1d2160}
 </div>
 <div id="dex"><div id="dexbox">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;gap:8px;align-items:center"><b style="font-size:20px">⏸ Pause</b><button id="tb" onclick="setTab('b')">Bestiaire</button><button id="tt" onclick="setTab('t')">Tours</button></div>
-    <div style="display:flex;gap:8px"><button onclick="resetDex()">Réinitialiser les index</button><button onclick="closeDex()">Reprendre (Échap)</button></div>
+    <div style="display:flex;gap:8px;align-items:center"><b style="font-size:20px">⏸ Pause</b><button id="tr" onclick="setTab('r')">Règles</button><button id="tb" onclick="setTab('b')">Bestiaire</button><button id="tt" onclick="setTab('t')">Tours</button><button id="to" onclick="setTab('o')">Options</button></div>
+    <div style="display:flex;gap:8px"><button onclick="closeDex()">Reprendre (Échap)</button></div>
   </div>
   <div id="cards"></div>
+</div></div>
+<div id="start" class="on"><div id="startbox">
+  <h2 style="margin:0 0 6px">Constellations</h2>
+  <p>Reprends une partie sauvegardée ou commence une nouvelle partie.</p>
+  <div class="row"><button id="startNew">Nouvelle partie</button><button id="startImp">Importer une sauvegarde (.txt)</button></div>
+  <input type="file" id="startFile" accept=".txt,.json" style="display:none">
+  <div id="startMsg" class="hint"></div>
 </div></div>
 <script>
 const C=document.getElementById('c'),X=C.getContext('2d'),$=id=>document.getElementById(id);
@@ -123,16 +135,44 @@ const hpAt=(k,w)=>TUNE.hp0*Math.pow(TUNE.hpGrow,w-1)*K[k].hp;
 // ---------- Index (sauvegardé dans le navigateur) ----------
 let DX=null;try{DX=JSON.parse(localStorage.getItem('cst-dex'))}catch(e){}
 if(!DX||!DX.k||DX.k.length!==K.length||DX.t.length!==T.length)DX={k:K.map(()=>0),t:T.map(()=>0)};
-function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX))}catch(e){}}
+let SET={autoWave:true};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
+let PROG={best:0};try{Object.assign(PROG,JSON.parse(localStorage.getItem('cst-prog'))||{})}catch(e){}
+function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStorage.setItem('cst-set',JSON.stringify(SET));localStorage.setItem('cst-prog',JSON.stringify(PROG))}catch(e){}}
 addEventListener('beforeunload',save);
 function unlock(t){if(t.lvl>DX.t[t.type]){DX.t[t.type]=t.lvl;save()}}
+function exportSave(){
+  const data={v:1,coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
+    slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
+  const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='constellations-sauvegarde.txt';
+  document.body.appendChild(a);a.click();a.remove();
+}
+let lastImportNote='';
+function applySave(data){
+  if(!data||typeof data!=='object'||!Array.isArray(data.slots))return false;
+  g.coins=+data.coins||0;g.lives=data.lives>0?data.lives:20;g.boxes=+data.boxes||0;
+  g.autoWave=data.autoWave!==false;SET.autoWave=g.autoWave;
+  let w=+data.wave||0;lastImportNote='';
+  if(w<PROG.best){lastImportNote=' Cette sauvegarde correspond à la vague '+w+', déjà dépassée dans ce navigateur ; elle reprend à la vague '+PROG.best+' pour éviter de refarmer une vague terminée.';w=PROG.best}
+  g.wave=w;PROG.best=Math.max(PROG.best,w);
+  g.en=[];g.bl=[];g.fx=[];g.q=[];g.cd=0;g.timer=15;g.sel=null;g.over=false;
+  S.forEach((s,i)=>{const d=data.slots[i];s.t=(d&&T[d.type])?{type:d.type,fu:Math.max(1,d.fu|0),lvl:Math.max(1,d.lvl|0),h:0,h0:0,cool:0,inv:+d.inv||0,n:0}:null});
+  if(data.dex&&Array.isArray(data.dex.k)&&data.dex.k.length===K.length&&Array.isArray(data.dex.t)&&data.dex.t.length===T.length)DX=data.dex;
+  save();return true;
+}
+function importFile(file,cb){
+  const r=new FileReader();
+  r.onload=()=>{let ok=false;try{ok=applySave(JSON.parse(r.result))}catch(e){ok=false}cb(ok)};
+  r.onerror=()=>cb(false);
+  r.readAsText(file);
+}
 // ---------- État ----------
 const boxPrice=()=>Math.min(TUNE.boxMax,TUNE.box0+TUNE.boxStep*g.boxes);
 const upc=t=>Math.round(TUNE.up0*Math.pow(TUNE.upGrow,t.lvl-1)*(1+.3*T[t.type].rar));
 let g,drag=null,mouse={x:0,y:0},tab='b';const vl={};
 function say(m){$('msg').textContent=m}
 function reset(){
-  g={coins:120,lives:20,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,timer:15,speed:1,cd:0,paused:false};
+  g={coins:120,lives:20,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave};
   S.forEach(s=>s.t=null);
   say('Achète une météorite pour obtenir ta première tour.');
 }
@@ -169,7 +209,7 @@ function fuse(a,b){
   say(T[x.type].n+' : fusion '+b.t.fu+', niveau '+b.t.lvl+' (limite '+cap(b.t.fu)+').');
 }
 function startWave(){
-  save();g.wave++;g.timer=12;
+  g.wave++;PROG.best=Math.max(PROG.best,g.wave);save();g.timer=12;
   const w=g.wave,n=5+w*2,ids=K.map((d,i)=>i),el=ids.filter(i=>!K[i].boss&&K[i].from<=w),tw=el.reduce((a,i)=>a+K[i].w,0);
   for(let i=0;i<n;i++){
     let r=Math.random()*tw,k=el[0];
@@ -218,7 +258,7 @@ function hit(b){
 }
 function update(dt){
   if(g.q.length){g.cd-=dt;if(g.cd<=0){g.cd=.7;spawn(g.q.shift(),0)}}
-  else if(!g.en.length){g.timer-=dt;if(g.timer<=0)startWave()}
+  else if(!g.en.length){if(g.autoWave){g.timer-=dt;if(g.timer<=0)startWave()}}
   for(const e of g.en){
     const d=K[e.k];
     if(e.slowT>0)e.slowT-=dt;if(e.stT>0)e.stT-=dt;if(e.mkT>0)e.mkT-=dt;
@@ -410,7 +450,7 @@ function sheet(){
 }
 function hud(){
   $('co').textContent=g.coins;$('li').textContent=g.lives;$('wa').textContent=g.wave;
-  $('nx').textContent=g.paused?'⏸ Pause':(g.q.length||g.en.length)?'':'Prochaine vague dans '+Math.ceil(g.timer)+' s';
+  $('nx').textContent=g.paused?'⏸ Pause':(g.q.length||g.en.length)?'':(g.autoWave?'Prochaine vague dans '+Math.ceil(g.timer)+' s':'Vagues manuelles : Espace pour lancer');
   $('bb').textContent='Météorite '+boxPrice()+'💰 (B)';
   sheet();
 }
@@ -440,6 +480,13 @@ addEventListener('mouseup',ev=>{
   if(s.t)fuse(d.s,s);else{s.t=d.s.t;d.s.t=null;g.sel=s}
 });
 $('bb').onclick=buyBox;$('bd').onclick=()=>openDex();
+$('startNew').onclick=()=>closeStart();
+$('startImp').onclick=()=>$('startFile').click();
+$('startFile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  importFile(f,ok=>{$('startMsg').textContent=ok?('Sauvegarde chargée.'+lastImportNote):'Fichier invalide ou illisible.';if(ok)setTimeout(closeStart,lastImportNote?1800:400)});
+};
+function closeStart(){$('start').classList.remove('on');g.paused=false}
 $('bw').onclick=()=>{if(!g.q.length&&!g.en.length&&!g.over)startWave()};
 $('bv').onclick=()=>{g.speed=g.speed===1?2:1;$('bv').textContent='Vitesse ×'+g.speed+' (V)'};
 addEventListener('keydown',ev=>{
@@ -454,13 +501,37 @@ addEventListener('keydown',ev=>{
 });
 // ---------- Menu pause : bestiaire et tours ----------
 function setTab(t){tab=t;renderDex()}
+function toggleAuto(){g.autoWave=!g.autoWave;SET.autoWave=g.autoWave;save();renderDex()}
 function openDex(t){g.paused=true;save();if(t)tab=t;$('dex').classList.add('on');renderDex()}
 function closeDex(){g.paused=false;$('dex').classList.remove('on')}
 function resetDex(){if(confirm('Effacer les tours et ennemis découverts ?')){DX={k:K.map(()=>0),t:T.map(()=>0)};save();renderDex()}}
 function lvStep(j,n){vl[j]=Math.max(1,Math.min(DX.t[j],(vl[j]||1)+n));renderDex()}
 function renderDex(){
-  $('tb').classList.toggle('on',tab==='b');$('tt').classList.toggle('on',tab==='t');
+  $('tr').classList.toggle('on',tab==='r');$('tb').classList.toggle('on',tab==='b');$('tt').classList.toggle('on',tab==='t');$('to').classList.toggle('on',tab==='o');
   const w=Math.max(1,g.wave);let h='';const draws=[];
+  if(tab==='r'){
+    $('cards').innerHTML='<div style="grid-column:1/-1;max-width:720px;line-height:1.6">'+
+     '<h3>But du jeu</h3><p>Empêche les Vides d\u2019atteindre le portail doré. Chaque ennemi qui passe te coûte des vies (davantage pour les boss) ; à 0 vie, la partie est terminée.</p>'+
+     '<h3>Météorites</h3><p>Achète une météorite avec tes pièces pour obtenir une tour aléatoire sur un emplacement libre (prix croissant). Sa rareté détermine ses chances d\u2019apparition : Commun et Peu commun sont fréquents, Rare l\u2019est moins, Épique et Légendaire sont exceptionnelles.</p>'+
+     '<h3>Améliorer</h3><p>Clique sur une tour posée pour afficher sa fiche à droite : dégâts, rayon d\u2019action, cadence et pouvoir spécial. Le bouton Améliorer augmente son niveau contre des pièces, jusqu\u2019à une limite.</p>'+
+     '<h3>Fusionner</h3><p>Glisse une tour sur une autre tour identique (même type, même fusion) pour les fusionner. Cela consomme les deux tours et en donne une seule : fusion +1, niveau +1, et une limite de niveau plus haute. C\u2019est la seule façon de dépasser le niveau maximum d\u2019une tour.</p>'+
+     '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
+     '<h3>Sauvegarde</h3><p>Tu peux exporter ta partie dans un fichier .txt depuis les Options, et la réimporter plus tard ou sur un autre ordinateur. Pour éviter de refarmer des pièces en rechargeant une ancienne sauvegarde, une partie ne peut jamais redescendre en dessous de la vague la plus avancée déjà atteinte dans ce navigateur.</p>'+
+     '<h3>Index</h3><p>Le Bestiaire répertorie les Vides déjà vaincus, avec leurs statistiques. L\u2019onglet Tours répertorie les tours déjà obtenues, avec leurs statistiques à chaque niveau débloqué.</p>'+
+     '</div>';
+    return;
+  }
+  if(tab==='o'){
+    h='<div class="opt"><input type="checkbox" id="autoChk" '+(g.autoWave?'checked':'')+' onchange="toggleAuto()"><label for="autoChk">Lancer les vagues automatiquement après un délai</label></div>'+
+     '<p style="margin-top:0">Si décoché, aucune vague ne démarre tant que tu n\u2019appuies pas sur « Vague suivante » (ou Espace).</p>'+
+     '<div class="row"><button onclick="exportSave()">Exporter la sauvegarde (.txt)</button><button onclick="document.getElementById(&quot;impFile&quot;).click()">Importer une sauvegarde</button></div>'+
+     '<input type="file" id="impFile" accept=".txt,.json" style="display:none">'+
+     '<div id="impMsg" class="hint"></div>'+
+     '<div class="row"><button onclick="resetDex()">Réinitialiser les index (bestiaire / tours)</button></div>';
+    $('cards').innerHTML=h;
+    $('impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;importFile(f,ok=>{$('impMsg').textContent=ok?('Sauvegarde importée.'+lastImportNote):'Fichier invalide ou illisible.';if(ok)renderDex()})};
+    return;
+  }
   if(tab==='b'){
     const seen=K.map((d,i)=>i).filter(i=>DX.k[i]>0);
     h=seen.length?'':'<p>Aucun Vide vaincu pour l\u2019instant. Les ennemis apparaissent ici après leur première défaite.</p>';
@@ -496,7 +567,7 @@ function renderDex(){
   const ids=tab==='b'?K.map((d,i)=>i).filter(i=>DX.k[i]>0):T.map((d,i)=>i).filter(j=>DX.t[j]>0);
   ids.forEach((id,n)=>{const c=$((tab==='b'?'dc':'tc')+id).getContext('2d');draws[n](c)});
 }
-reset();requestAnimationFrame(loop);
+reset();g.paused=true;requestAnimationFrame(loop);
 </script>
 </body>
 </html>
