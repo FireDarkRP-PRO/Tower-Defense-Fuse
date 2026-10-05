@@ -29,7 +29,14 @@ button:disabled{opacity:.45;cursor:default}
 button.on{border-color:var(--gold);background:#1d2160}
 #dex,#start{position:fixed;inset:0;background:rgba(8,10,28,.93);display:none;align-items:center;justify-content:center;z-index:5}
 #dex.on,#start.on{display:flex}
-#startbox{width:min(440px,92vw);background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:22px;text-align:center}
+#startbox{width:min(800px,94vw);max-height:94vh;overflow:auto;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:20px;text-align:center}
+.seg{display:flex;gap:8px;justify-content:center;margin:6px 0}
+.seg button{min-width:110px}
+#lvGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:8px;margin:8px 0}
+.lvc{border:2px solid var(--line);border-radius:8px;padding:5px;cursor:pointer;font-size:12px;display:flex;flex-direction:column;gap:2px;background:#0b0d26;text-align:left}
+.lvc:hover{border-color:#6b75d8}.lvc.on{border-color:var(--gold);background:#1d2160}
+.lvc canvas{width:100%;height:auto;aspect-ratio:16/9;border:0;border-radius:5px;cursor:pointer}
+.lvc span{color:#9fb0ff}
 #startbox p{color:#c4cbf5}
 .opt{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:15px}
 .opt input{width:18px;height:18px}
@@ -44,12 +51,13 @@ button.on{border-color:var(--gold);background:#1d2160}
 </style>
 </head>
 <body>
-<div id="top"><span>💰 <b id="co"></b></span><span>❤ <b id="li"></b></span><span>Vague <b id="wa"></b></span><span id="nx"></span></div>
+<div id="top"><span>💰 <b id="co"></b></span><span>❤ <b id="li"></b></span><span>Vague <b id="wa"></b></span><span id="lvn" style="color:#9fb0ff;font-size:15px"></span><span id="nx"></span></div>
 <div id="main"><canvas id="c" width="1280" height="720"></canvas><aside id="sheet"></aside></div>
 <div id="msg"></div>
 <div id="bar">
   <button id="bb">Météorite (B)</button>
   <button id="bw">Vague suivante (Espace)</button>
+  <button id="bn" style="display:none"></button>
   <button id="bv">Vitesse ×1 (V)</button>
   <button id="bd">Pause · Index (E)</button>
 </div>
@@ -62,8 +70,10 @@ button.on{border-color:var(--gold);background:#1d2160}
 </div></div>
 <div id="start" class="on"><div id="startbox">
   <h2 style="margin:0 0 6px">TD Fuse by FireDarkRP</h2>
-  <p>Reprends une partie sauvegardée ou commence une nouvelle partie.</p>
-  <div class="row"><button id="startNew">Nouvelle partie</button><button id="startImp">Importer une sauvegarde (.txt)</button></div>
+  <p style="margin:4px 0 10px">Choisis une difficulté et un niveau, ou reprends une partie sauvegardée.</p>
+  <div class="seg" id="diffBtns"></div><div id="diffDs" class="hint"></div>
+  <div id="lvGrid"></div><div id="lvDs" class="hint"></div>
+  <div class="row"><button id="startNew">Nouvelle partie</button><button id="startImp">Importer une sauvegarde (.txt)</button><button id="startBack" style="display:none">Retour au jeu</button></div>
   <input type="file" id="startFile" accept=".txt,.json" style="display:none">
   <div id="startMsg" class="hint"></div>
 </div></div>
@@ -73,18 +83,78 @@ const C=document.getElementById('c'),X=C.getContext('2d'),$=id=>document.getElem
 const TUNE={hp0:22,hpGrow:1.15,dmgGrow:1.35,box0:50,boxStep:6,boxMax:400,up0:20,upGrow:1.5,fuMax:4,rwGrow:.04};
 const WIN_WAVE=30;
 const cap=f=>1+2*f; // limite de niveau selon la fusion : 3, 5, 7, 9
-// ---------- Carte ----------
-const P=[[-40,140],[1000,140],[1000,360],[280,360],[280,580],[1320,580]];
-const segs=[];let tot=0;
-for(let i=1;i<P.length;i++){const l=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);segs.push(l);tot+=l}
-function at(d){for(let i=0;i<segs.length;i++){if(d<=segs[i]){const t=d/segs[i];return[P[i][0]+(P[i+1][0]-P[i][0])*t,P[i][1]+(P[i+1][1]-P[i][1])*t]}d-=segs[i]}return P[P.length-1]}
+// ---------- Difficultés ----------
+const DIFF=[
+ {n:'Facile',hp:.75,sp:.9,rw:1.2,coins:180,lives:30,ds:'Ennemis moins résistants et plus lents, plus de vies et de pièces au départ.'},
+ {n:'Moyen',hp:1,sp:1,rw:1,coins:120,lives:20,ds:'L\u2019équilibrage de base du jeu.'},
+ {n:'Difficile',hp:1.4,sp:1.12,rw:.9,coins:90,lives:12,ds:'Ennemis 40 % plus résistants et plus rapides, peu de vies, récompenses réduites.'}
+];
+// ---------- Niveaux (routes) ----------
+// Une route est une liste de points ; elle peut se croiser, repasser sur elle-même, ou fusionner avec une autre route.
+// Tous les niveaux ont 26 emplacements (générés automatiquement, sauf le niveau 1 qui garde sa grille d'origine).
+const LV=[
+ {n:'Zigzag',ds:'Le parcours classique : trois lignes droites reliées en Z.',
+  routes:[[[-40,140],[1000,140],[1000,360],[280,360],[280,580],[1250,580]]],
+  slots:(()=>{const a=[];for(let i=0;i<8;i++)a.push([380+i*80,50]);for(let i=0;i<8;i++)a.push([340+i*80,250]);for(let i=0;i<10;i++)a.push([380+i*80,470]);return a})()},
+ {n:'Serpent',ds:'Un long serpent à quatre lignes : beaucoup de temps pour tirer.',
+  routes:[[[-40,90],[1120,90],[1120,250],[160,250],[160,410],[1120,410],[1120,580],[250,580]]]},
+ {n:'Spirale',ds:'La route s\u2019enroule autour du plateau jusqu\u2019au portail, au centre.',
+  routes:[[[-40,60],[1220,60],[1220,660],[60,660],[60,210],[1070,210],[1070,510],[210,510],[210,360],[640,360]]]},
+ {n:'Croisement',ds:'La route se recoupe elle-même : les ennemis passent deux fois au centre.',
+  routes:[[[-40,360],[1000,360],[1000,120],[640,120],[640,620],[1200,620]]]},
+ {n:'Demi-tour',ds:'La route repasse sur son premier tronçon à l\u2019envers, puis part vers le bas.',
+  routes:[[[-40,360],[900,360],[900,150],[1180,150],[1180,360],[300,360],[300,600],[1000,600]]]},
+ {n:'Fourche',ds:'Deux entrées (haut et bas) qui fusionnent sur une seule route vers le portail.',
+  routes:[[[-40,130],[480,130],[480,360],[1000,360],[1000,560],[1200,560]],[[-40,590],[480,590],[480,360],[1000,360],[1000,560],[1200,560]]]},
+ {n:'Îlot',ds:'La route se sépare en deux autour d\u2019un îlot, puis se rejoint avant le portail.',
+  routes:[[[-40,360],[300,360],[300,160],[900,160],[900,360],[1200,360]],[[-40,360],[300,360],[300,560],[900,560],[900,360],[1200,360]]]},
+ {n:'Labyrinthe',ds:'Cinq longs couloirs verticaux, entrée par le haut.',
+  routes:[[[200,-40],[200,640],[440,640],[440,80],[680,80],[680,640],[920,640],[920,80],[1160,80],[1160,600]]]},
+ {n:'Entrelacs',ds:'Un entrelacs qui se croise trois fois : les tours centrales travaillent beaucoup.',
+  routes:[[[-40,240],[1000,240],[1000,480],[280,480],[280,120],[640,120],[640,600],[1200,600]]]},
+ {n:'Grand détour',ds:'Le parcours le plus long : un grand tour du plateau avant une dernière boucle.',
+  routes:[[[-40,360],[160,360],[160,100],[1120,100],[1120,620],[160,620],[160,440],[1000,440],[1000,220],[280,220],[280,330],[640,330]]]}
+];
+let RT=[],SG=[],TT=[],selLv=0,selDf=1;
+function dseg(px,py,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;let t=l2?((px-a[0])*dx+(py-a[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)}
+function dpath(x,y,rs){let m=1e9;for(const P of rs)for(let i=1;i<P.length;i++)m=Math.min(m,dseg(x,y,P[i-1],P[i]));return m}
+function autoSlots(rs,N){
+  const smp=[];
+  for(const P of rs)for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],n=Math.max(1,Math.round(Math.hypot(b[0]-a[0],b[1]-a[1])/25));for(let k=0;k<n;k++)smp.push([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n,0])}
+  let out=[];
+  for(const md of [74,68,62]){
+    const cands=[];for(let x=40;x<=1240;x+=40)for(let y=40;y<=680;y+=40)if(dpath(x,y,rs)>=md)cands.push([x,y]);
+    smp.forEach(p=>p[2]=0);out=[];
+    while(out.length<N){
+      let best=null,bs=-1;
+      for(const c of cands){
+        if(out.some(o=>Math.abs(o[0]-c[0])<72&&Math.abs(o[1]-c[1])<72))continue;
+        let sc=0;for(const p of smp)if(Math.hypot(p[0]-c[0],p[1]-c[1])<=175)sc+=1/(1+p[2]);
+        if(sc>bs){bs=sc;best=c}
+      }
+      if(!best)break;
+      out.push(best);for(const p of smp)if(Math.hypot(p[0]-best[0],p[1]-best[1])<=175)p[2]++;
+    }
+    if(out.length>=N)break;
+  }
+  return out.sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+}
 const S=[];
-for(let i=0;i<8;i++)S.push({x:380+i*80,y:50,t:null});
-for(let i=0;i<8;i++)S.push({x:340+i*80,y:250,t:null});
-for(let i=0;i<10;i++)S.push({x:380+i*80,y:470,t:null});
+function setLevel(li){
+  const L=LV[li];RT=L.routes;SG=[];TT=[];
+  for(const P of RT){const sg=[];let t=0;for(let i=1;i<P.length;i++){const l=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);sg.push(l);t+=l}SG.push(sg);TT.push(t)}
+  S.length=0;
+  if(!L.slots)L.slots=autoSlots(RT,26);
+  L.slots.forEach(p=>S.push({x:p[0],y:p[1],t:null}));
+}
+function at(d,r){
+  const P=RT[r],sg=SG[r];
+  for(let i=0;i<sg.length;i++){if(d<=sg[i]){const t=d/sg[i];return[P[i][0]+(P[i+1][0]-P[i][0])*t,P[i][1]+(P[i+1][1]-P[i][1])*t]}d-=sg[i]}
+  return P[P.length-1];
+}
 const stars=Array.from({length:120},()=>({x:Math.random()*1280,y:Math.random()*720,r:Math.random()*1.6+.3,a:Math.random()*.6+.2}));
 // ---------- Tours (10) ----------
-const RN=['Commun','Peu commun','Rare','Épique','Légendaire'],RC=['#b8c0e0','#7dff9a','#5ec8ff','#c07bff','#ffb020'];
+const RN=['Commun','Peu commun','Rare','Épique','Légendaire','Mythique'],RC=['#b8c0e0','#7dff9a','#5ec8ff','#c07bff','#ffb020','#ff3df2'];
 const T=[
  {n:'Éclat',c:'#ffd84a',rar:0,w:10,d:10,r:190,cd:.45,sd:3},
  {n:'Braise',c:'#ff7a45',rar:0,w:10,d:9,r:170,cd:.7,sd:4},
@@ -95,13 +165,19 @@ const T=[
  {n:'Éclair',c:'#9bb8ff',rar:2,w:3,d:16,r:190,cd:1,st:5},
  {n:'Traqueur',c:'#ff4d4d',rar:2,w:3,d:20,r:280,cd:1.3,st:4},
  {n:'Prisme',c:'#ffffff',rar:3,w:1.5,d:18,r:230,cd:1.2,st:6},
- {n:'Singularité',c:'#7a3cff',rar:4,w:.6,d:40,r:240,cd:2.4,sd:24}
+ {n:'Singularité',c:'#7a3cff',rar:4,w:.6,d:40,r:240,cd:2.4,sd:24},
+ {n:'Néant',c:'#ff3df2',rar:5,w:0,d:0,r:0,cd:1,st:8}
 ];
+// Tour mythique : ne tire pas, offre un bouton « Nuke » (dégâts en % des PV max)
+const MY=10,MYTH_CHANCE=.001,MYTH_CD=3,MYTH_UP=6; // MYTH_UP : multiplicateur du prix d'amélioration (légendaire : ×2,2)
+const capOf=t=>cap(t.fu); // le Néant suit la règle de fusion normale : niveau max 9 (fusion 4)
+const nukePct=l=>Math.min(1,.1+.1*l); // niv 1 : 20 %  →  niv 9 (max) : 100 %
 const dm=(j,l)=>Math.round(T[j].d*Math.pow(TUNE.dmgGrow,l-1));
 const rg=(j,l)=>Math.round(T[j].r*(1+.03*(l-1)));
 const cdv=(j,l)=>T[j].cd*Math.pow(.97,l-1);
 const f1=x=>+x.toFixed(1);
-function stat(j,l){const c=cdv(j,l),d=dm(j,l);return{dmg:d,range:rg(j,l),sh:+(1/c).toFixed(2),dps:Math.round(d/c)}}
+function stat(j,l){if(j===MY){const p=nukePct(l);return{dmg:0,range:0,sh:0,dps:0,nk:Math.round(p*100),nb:Math.round(p*50),cdw:MYTH_CD}}
+  const c=cdv(j,l),d=dm(j,l);return{dmg:d,range:rg(j,l),sh:+(1/c).toFixed(2),dps:Math.round(d/c)}}
 function pw(j,l){return[
  ['Surcharge','Un tir sur 5 inflige ×'+f1(2+.1*(l-1))+' dégâts.','Toutes les '+f1(5*cdv(0,l))+' s'],
  ['Brûlure','Enflamme la cible : '+Math.round(dm(1,l)*.4)+' dégâts/s.','Durée : '+f1(3+.3*(l-1))+' s'],
@@ -112,7 +188,8 @@ function pw(j,l){return[
  ['Chaîne','L\u2019éclair rebondit '+(2+Math.floor(l/3))+' fois à 60 % des dégâts.','Rayon de rebond : 100 px'],
  ['Marque','La cible subit +'+(25+2*(l-1))+' % de dégâts.','Durée : 3 s'],
  ['Multi-tir','Tire sur plusieurs cibles à la fois.','Cibles : '+(2+(l>>2))],
- ['Trou noir','Zone de 80 px et recul de '+(50+5*(l-1))+' px.','Instantané']
+ ['Trou noir','Zone de 80 px et recul de '+(50+5*(l-1))+' px.','Instantané'],
+ ['Nuke','Ne tire pas. Le bouton Nuke (N) retire '+Math.round(nukePct(l)*100)+' % des PV max de tous les ennemis ('+Math.round(nukePct(l)*50)+' % pour les boss).','Utilisable 1 fois toutes les '+MYTH_CD+' vagues']
 ][j]}
 // ---------- Ennemis (15) ----------
 const K=[
@@ -132,17 +209,20 @@ const K=[
  {n:'Titan',sp:26,hp:40,r:30,rw:100,c:'#5c6bc0',sh:'block',from:10,w:0,boss:1,life:8,ar:.4,ims:1,ds:'Boss blindé, insensible au gel.'},
  {n:'Hydre',sp:28,hp:60,r:32,rw:150,c:'#00897b',sh:'spike',from:15,w:0,boss:1,life:10,rg:.02,sp2:[4,3],ds:'Boss qui régénère et libère trois Colosses.'}
 ];
-const hpAt=(k,w)=>TUNE.hp0*Math.pow(TUNE.hpGrow,w-1)*K[k].hp;
+const hpAt=(k,w)=>TUNE.hp0*Math.pow(TUNE.hpGrow,w-1)*K[k].hp*DIFF[g.diff].hp;
+const rwAt=(k,w)=>Math.round(K[k].rw*(1+TUNE.rwGrow*(w-1))*DIFF[g.diff].rw);
 // ---------- Index (sauvegardé dans le navigateur) ----------
 let DX=null;try{DX=JSON.parse(localStorage.getItem('cst-dex'))}catch(e){}
-if(!DX||!DX.k||DX.k.length!==K.length||DX.t.length!==T.length)DX={k:K.map(()=>0),t:T.map(()=>0)};
-let SET={autoWave:true};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
-let PROG={best:0};try{Object.assign(PROG,JSON.parse(localStorage.getItem('cst-prog'))||{})}catch(e){}
+function fixDx(d){if(!d||!Array.isArray(d.k)||d.k.length!==K.length||!Array.isArray(d.t))return null;return{k:d.k,t:T.map((_,i)=>Math.max(0,d.t[i]|0))}}
+DX=fixDx(DX)||{k:K.map(()=>0),t:T.map(()=>0)};
+let SET={autoWave:true,lv:0,diff:1};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
+let PROG={best:0,bl:{}};try{Object.assign(PROG,JSON.parse(localStorage.getItem('cst-prog'))||{})}catch(e){}
+if(!PROG.bl||typeof PROG.bl!=='object')PROG.bl={};
 function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStorage.setItem('cst-set',JSON.stringify(SET));localStorage.setItem('cst-prog',JSON.stringify(PROG))}catch(e){}}
 addEventListener('beforeunload',save);
 function unlock(t){if(t.lvl>DX.t[t.type]){DX.t[t.type]=t.lvl;save()}}
 function exportSave(){
-  const data={v:2,coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
+  const data={v:3,lv:g.lv,diff:g.diff,nkl:nukeLeft(),coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
     slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
   const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TD-Fuse-sauvegarde.txt';
@@ -151,16 +231,19 @@ function exportSave(){
 let lastImportNote='';
 function applySave(data){
   if(!data||typeof data!=='object'||!Array.isArray(data.slots))return false;
-  g.coins=+data.coins||0;g.lives=data.lives>0?data.lives:20;g.boxes=+data.boxes||0;
+  const lv=LV[data.lv]?data.lv|0:0,df=DIFF[data.diff]?data.diff|0:1;
+  SET.lv=lv;SET.diff=df;g.lv=lv;g.diff=df;g.rc=0;drag=null;setLevel(lv);selLv=lv;selDf=df;
+  g.coins=+data.coins||0;g.lives=data.lives>0?data.lives:DIFF[df].lives;g.boxes=+data.boxes||0;
   g.autoWave=data.autoWave!==false;SET.autoWave=g.autoWave;
   // L'import doit respecter la vague du fichier, indépendamment de la progression
   // enregistrée localement dans ce navigateur.
   const w=Math.max(0,Number(data.wave-1)||0);lastImportNote='';
   g.wave=w;PROG.best=Math.max(PROG.best,w);
+  g.nk=data.nkl>0?w+1+(data.nkl|0)-MYTH_CD:-99;g.cont=w>=WIN_WAVE;
   g.en=[];g.bl=[];g.fx=[];g.q=[];g.cd=0;g.timer=15;g.sel=null;g.over=false;
   S.forEach((s,i)=>{const d=data.slots[i];s.t=(d&&T[d.type])?{type:d.type,fu:Math.max(1,d.fu|0),lvl:Math.max(1,d.lvl|0),h:0,h0:0,cool:0,inv:+d.inv||0,n:0}:null});
-  if(data.dex&&Array.isArray(data.dex.k)&&data.dex.k.length===K.length&&Array.isArray(data.dex.t)&&data.dex.t.length===T.length)DX=data.dex;
-  save();return true;
+  {const dx=fixDx(data.dex);if(dx)DX=dx}
+  save();renderStart();return true;
 }
 function importFile(file,cb){
   const r=new FileReader();
@@ -170,12 +253,13 @@ function importFile(file,cb){
 }
 // ---------- État ----------
 const boxPrice=()=>Math.min(TUNE.boxMax,TUNE.box0+TUNE.boxStep*g.boxes);
-const upc=t=>Math.round(TUNE.up0*Math.pow(TUNE.upGrow,t.lvl-1)*(1+.3*T[t.type].rar));
+const upc=t=>Math.round(TUNE.up0*Math.pow(TUNE.upGrow,t.lvl-1)*(t.type===MY?MYTH_UP:1+.3*T[t.type].rar));
 let g,drag=null,mouse={x:0,y:0},tab='b';const vl={};
 function say(m){$('msg').textContent=m}
 function reset(){
-  g={coins:120,lives:20,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,won:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave};
-  S.forEach(s=>s.t=null);
+  const lv=LV[SET.lv]?SET.lv:0,df=DIFF[SET.diff]?SET.diff:1,D=DIFF[df];
+  g={coins:D.coins,lives:D.lives,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,won:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave,lv,diff:df,rc:0,nk:-99,cont:false};
+  drag=null;setLevel(lv);$('bv').textContent='Vitesse ×1 (V)';
   say('Achète une météorite pour obtenir ta première tour.');
 }
 function buyBox(){
@@ -187,13 +271,14 @@ function buyBox(){
   g.coins-=p;g.boxes++;
   let r=Math.random()*T.reduce((a,d)=>a+d.w,0),ty=0;
   for(let i=0;i<T.length;i++){r-=T[i].w;if(r<=0){ty=i;break}}
+  if(Math.random()<MYTH_CHANCE)ty=MY;
   const s=free[Math.floor(Math.random()*free.length)];
   s.t={type:ty,fu:1,lvl:1,h:1.6,h0:1.6,cool:0,inv:p,n:0};
   g.sel=s;say('La météorite s\u2019ouvre…');
 }
 function upgrade(){
   const s=g.sel,t=s&&s.t;if(!t||t.h>0||g.over)return;
-  if(t.lvl>=cap(t.fu))return say('Niveau max : fusionne avec une '+T[t.type].n+' de fusion '+t.fu+' pour monter la limite.');
+  if(t.lvl>=capOf(t))return say('Niveau max : fusionne avec une '+T[t.type].n+' de fusion '+t.fu+' pour monter la limite.');
   const p=upc(t);
   if(g.coins<p)return say('Il faut '+p+' pièces pour améliorer.');
   g.coins-=p;t.inv+=p;t.lvl++;unlock(t);
@@ -211,7 +296,7 @@ function fuse(a,b){
   say(T[x.type].n+' : fusion '+b.t.fu+', niveau '+b.t.lvl+' (limite '+cap(b.t.fu)+').');
 }
 function startWave(){
-  g.wave++;PROG.best=Math.max(PROG.best,g.wave);save();g.timer=12;
+  g.wave++;PROG.best=Math.max(PROG.best,g.wave);{const k=g.lv+':'+g.diff;PROG.bl[k]=Math.max(PROG.bl[k]||0,g.wave)}save();g.timer=12;
   const w=g.wave,n=5+w*2,ids=K.map((d,i)=>i),el=ids.filter(i=>!K[i].boss&&K[i].from<=w),tw=el.reduce((a,i)=>a+K[i].w,0);
   for(let i=0;i<n;i++){
     let r=Math.random()*tw,k=el[0];
@@ -222,9 +307,26 @@ function startWave(){
   else say('Vague '+w+' en approche.');
   g.cd=0;
 }
-function spawn(k,d0){
-  const d=K[k],hp=hpAt(k,g.wave),[x,y]=at(d0);
-  g.en.push({k,d:d0,x,y,hp,mx:hp,sp:d.sp,r:d.r,slowT:0,stT:0,bn:0,bt:0,mk:0,mkT:0,hits:0,hurtT:0,kb:0});
+function spawn(k,d0,r){
+  if(r===undefined)r=(g.rc++)%RT.length;
+  const d=K[k],hp=hpAt(k,g.wave),[x,y]=at(d0,r);
+  g.en.push({k,d:d0,rt:r,x,y,hp,mx:hp,sp:d.sp*DIFF[g.diff].sp,r:d.r,slowT:0,stT:0,bn:0,bt:0,mk:0,mkT:0,hits:0,hurtT:0,kb:0});
+}
+// ---------- Nuke (tour mythique) ----------
+const mythBest=()=>{let m=null;for(const s of S){const t=s.t;if(t&&t.type===MY&&t.h<=0&&(!m||t.lvl>m.lvl))m=t}return m};
+const nukeLeft=()=>Math.max(0,g.nk+MYTH_CD-g.wave);
+function nuke(){
+  const m=mythBest();if(!m||g.over||g.paused)return;
+  const L=nukeLeft();
+  if(L>0)return say('Nuke en recharge : encore '+L+' vague'+(L>1?'s':'')+'.');
+  if(!g.en.length)return say('Aucun ennemi à frapper pour l\u2019instant.');
+  const p=nukePct(m.lvl);g.nk=g.wave;
+  for(const e of g.en){
+    e.hp-=e.mx*(K[e.k].boss?p*.5:p);e.hurtT=1.2;if(e.hp<=0)e.nk=1;
+    g.fx.push({x:e.x,y:e.y,r:6,mx:40,c:T[MY].c,l:.5,m:.5});
+  }
+  g.fx.push({x:640,y:360,r:20,mx:1000,c:T[MY].c,l:.7,m:.7});
+  say('NUKE ! −'+Math.round(p*100)+' % des PV max ('+Math.round(p*50)+' % pour les boss).');
 }
 // ---------- Combat ----------
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -267,16 +369,17 @@ function update(dt){
     if(e.bt>0){e.bt-=dt;e.hp-=e.bn*dt}
     if(d.rg&&e.hp>0&&e.hurtT<=0)e.hp=Math.min(e.mx,e.hp+e.mx*d.rg*dt);
     if(e.stT<=0)e.d+=e.sp*(e.slowT>0?.5:1)*dt;
-    [e.x,e.y]=at(e.d);
-    if(e.d>=tot){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu ou appuie sur R pour rejouer.')}}
+    [e.x,e.y]=at(e.d,e.rt);
+    if(e.d>=TT[e.rt]){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu ou appuie sur R pour rejouer.')}}
   }
   for(const s of S){
     const t=s.t;if(!t)continue;
     if(t.h>0){
       t.h-=dt;
-      if(t.h<=0){say((DX.t[t.type]?'':'Nouvelle tour découverte : ')+T[t.type].n+' !');unlock(t);g.fx.push({x:s.x,y:s.y,r:10,mx:70,c:T[t.type].c,l:.4,m:.4})}
+      if(t.h<=0){say(t.type===MY?'✨ Tour MYTHIQUE : Néant ! Utilise le bouton Nuke (N) pendant une vague.':(DX.t[t.type]?'':'Nouvelle tour découverte : ')+T[t.type].n+' !');unlock(t);g.fx.push({x:s.x,y:s.y,r:10,mx:70,c:T[t.type].c,l:.4,m:.4})}
       continue;
     }
+    if(t.type===MY)continue;
     t.cool-=dt;if(t.cool>0)continue;
     const j=t.type,l=t.lvl,r=rg(j,l);
     const tg=g.en.filter(e=>Math.hypot(e.x-s.x,e.y-s.y)<=r).sort((a,b)=>b.d-a.d).slice(0,j===8?2+(l>>2):1);
@@ -293,15 +396,15 @@ function update(dt){
   const add=[];
   for(const e of g.en){
     if(e.hp<=0&&!e.dead){
-      e.dead=1;const d=K[e.k],rw=Math.round(d.rw*(1+TUNE.rwGrow*(g.wave-1)));
+      e.dead=1;const d=K[e.k],rw=rwAt(e.k,g.wave);
       g.coins+=rw;DX.k[e.k]++;
       g.fx.push({x:e.x,y:e.y,txt:'+'+rw,l:.8,m:.8});
-      if(d.sp2)for(let i=0;i<d.sp2[1];i++)add.push([d.sp2[0],Math.max(0,e.d-i*10)]);
+      if(d.sp2&&!e.nk)for(let i=0;i<d.sp2[1];i++)add.push([d.sp2[0],Math.max(0,e.d-i*10),e.rt]);
     }
   }
   g.en=g.en.filter(e=>!e.dead&&!e.esc);
-  if(!g.won&&g.wave>=WIN_WAVE&&!g.en.length&&!g.q.length){g.won=true;g.paused=true;save()}
-  add.forEach(a=>spawn(a[0],a[1]));
+  if(!g.won&&!g.cont&&g.wave>=WIN_WAVE&&!g.en.length&&!g.q.length){g.won=true;g.cont=true;g.paused=true;save()}
+  add.forEach(a=>spawn(a[0],a[1],a[2]));
   g.bl=g.bl.filter(b=>!b.dead);
   for(const f of g.fx)f.l-=dt;
   g.fx=g.fx.filter(f=>f.l>0);
@@ -372,7 +475,7 @@ function drawTower(X,x,y,t,ghost){
   X.strokeStyle='#fff';X.lineWidth=1.5;X.globalAlpha=al*.55;
   for(let i=1;i<t.fu;i++){shape(X,x,y,rad+3+i*5,t.type,-Math.PI/2);X.stroke()}
   X.globalAlpha=al;
-  const c=cap(t.fu);
+  const c=capOf(t);
   for(let i=0;i<c;i++){X.fillStyle=i<t.lvl?'#fff':'#3a3f80';X.fillRect(x-c*3+i*6,y+rad+8+(t.fu-1)*5,5,4)}
   X.restore();
 }
@@ -400,16 +503,17 @@ function draw(){
   X.fillStyle='#0b0d26';X.fillRect(0,0,1280,720);
   for(const s of stars){X.fillStyle='rgba(200,210,255,'+s.a+')';X.fillRect(s.x,s.y,s.r,s.r)}
   X.lineCap='round';X.lineJoin='round';
-  X.beginPath();P.forEach((p,i)=>i?X.lineTo(p[0],p[1]):X.moveTo(p[0],p[1]));
-  X.strokeStyle='#1a1e4d';X.lineWidth=54;X.stroke();
-  X.strokeStyle='#2f3a8f';X.lineWidth=3;X.setLineDash([2,16]);X.stroke();X.setLineDash([]);
+  const pp=()=>{for(const P of RT){X.beginPath();P.forEach((p,i)=>i?X.lineTo(p[0],p[1]):X.moveTo(p[0],p[1]));X.stroke()}};
+  X.strokeStyle='#1a1e4d';X.lineWidth=54;pp();
+  X.strokeStyle='#2f3a8f';X.lineWidth=3;X.setLineDash([2,16]);pp();X.setLineDash([]);
+  const E=RT[0][RT[0].length-1];
   X.strokeStyle='#ffd84a';X.lineWidth=4;X.shadowColor='#ffd84a';X.shadowBlur=20;
-  X.beginPath();X.arc(1250,580,34,0,7);X.stroke();X.shadowBlur=0;
+  X.beginPath();X.arc(E[0],E[1],34,0,7);X.stroke();X.shadowBlur=0;
   for(const s of S){
     X.strokeStyle=g.sel===s?'#ffd84a':'#2b3070';X.lineWidth=2;X.setLineDash([6,5]);
     X.strokeRect(s.x-34,s.y-34,68,68);X.setLineDash([]);
   }
-  if(g.sel&&g.sel.t&&g.sel.t.h<=0){
+  if(g.sel&&g.sel.t&&g.sel.t.h<=0&&g.sel.t.type!==MY){
     X.strokeStyle='rgba(255,255,255,.25)';X.lineWidth=1.5;
     X.beginPath();X.arc(g.sel.x,g.sel.y,rg(g.sel.t.type,g.sel.t.lvl),0,7);X.stroke();
   }
@@ -443,12 +547,12 @@ function sheet(){
     if(el.dataset.sg!==sg){el.dataset.sg=sg;el.innerHTML='<h2>Fiche de tour</h2><p>Clique sur une tour pour voir ses statistiques et l\u2019améliorer.</p><p>Glisse une tour sur une tour identique (même type, même fusion) pour les fusionner : fusion +1, niveau +1 et limite de niveau plus haute.</p>'}
     return;
   }
-  const j=t.type,d=T[j],m=cap(t.fu),max=t.lvl>=m,p=upc(t);
+  const j=t.type,d=T[j],m=capOf(t),max=t.lvl>=m,p=upc(t);
   const pn=S.filter(o=>o!==s&&o.t&&o.t.h<=0&&o.t.type===j&&o.t.fu===t.fu).length;
   const sg=[S.indexOf(s),j,t.fu,t.lvl,g.coins>=p,pn].join();
   if(el.dataset.sg===sg)return;el.dataset.sg=sg;
   const a=stat(j,t.lvl),b=max?null:stat(j,t.lvl+1),w=pw(j,t.lvl);
-  const R=[['Dégâts','dmg',''],['Rayon d\u2019action','range',' px'],['Cadence','sh',' tirs/s'],['Dégâts / seconde','dps','']];
+  const R=j===MY?[['PV max retirés (ennemis)','nk',' %'],['PV max retirés (boss)','nb',' %'],['Recharge','cdw',' vagues']]:[['Dégâts','dmg',''],['Rayon d\u2019action','range',' px'],['Cadence','sh',' tirs/s'],['Dégâts / seconde','dps','']];
   const rows=R.map(r=>'<tr><td>'+r[0]+'</td><td>'+a[r[1]]+r[2]+(b&&b[r[1]]!==a[r[1]]?' <span class="up">→ '+b[r[1]]+r[2]+'</span>':'')+'</td></tr>').join('');
   el.innerHTML='<h2 style="color:'+d.c+'">'+d.n+'</h2><div style="color:'+RC[d.rar]+'">'+RN[d.rar]+'</div><div>Fusion '+t.fu+' · niveau '+t.lvl+'/'+m+'</div>'+
    '<table>'+rows+'</table><b>Pouvoir : '+w[0]+'</b><br>'+w[1]+'<br><i>'+w[2]+'</i>'+
@@ -457,9 +561,11 @@ function sheet(){
    '<div class="row"><button onclick="upgrade()"'+(max||g.coins<p?' disabled':'')+'>'+(max?'Niveau max':'Améliorer '+p+'💰 (U)')+'</button><button onclick="sell()">Vendre +'+Math.floor(t.inv*.5)+'💰 (S)</button></div>';
 }
 function hud(){
-  $('co').textContent=g.coins;$('li').textContent=g.lives;$('wa').textContent=g.wave;
+  $('lvn').textContent=LV[g.lv].n+' · '+DIFF[g.diff].n;$('co').textContent=g.coins;$('li').textContent=g.lives;$('wa').textContent=g.wave;
   $('nx').textContent=g.won?'🏆 Victoire':g.paused?'⏸ Pause':(g.q.length||g.en.length)?'':(g.autoWave?'Prochaine vague dans '+Math.ceil(g.timer)+' s':'Vagues manuelles : Espace pour lancer');
   $('bb').textContent='Météorite '+boxPrice()+'💰 (B)';
+  const mb=mythBest(),bn=$('bn');bn.style.display=mb?'':'none';
+  if(mb){const L=nukeLeft();bn.textContent=L>0?'☄ Nuke dans '+L+' vague'+(L>1?'s':''):'☄ Nuke '+Math.round(nukePct(mb.lvl)*100)+' % (N)';bn.disabled=L>0||!g.en.length;bn.classList.toggle('on',L===0&&g.en.length>0)}
   sheet();
 }
 let last=performance.now();
@@ -488,23 +594,48 @@ addEventListener('mouseup',ev=>{
   if(!d.moved||!s||s===d.s){g.sel=d.s;return}
   if(s.t)fuse(d.s,s);else{s.t=d.s.t;d.s.t=null;g.sel=s}
 });
-$('bb').onclick=buyBox;$('bd').onclick=()=>openDex();
-$('startNew').onclick=()=>closeStart();
+$('bb').onclick=buyBox;$('bn').onclick=nuke;$('bd').onclick=()=>openDex();
+$('startNew').onclick=()=>{SET.lv=selLv;SET.diff=selDf;save();reset();closeStart()};
+$('startBack').onclick=()=>closeStart();
+function pickLv(i){selLv=i;renderStart()}
+function pickDf(i){selDf=i;renderStart()}
+function thumb(c,i){
+  const x=c.getContext('2d'),k=c.width/1280;
+  x.fillStyle='#0b0d26';x.fillRect(0,0,c.width,c.height);
+  x.scale(k,k);x.lineCap='round';x.lineJoin='round';
+  for(const P of LV[i].routes){x.beginPath();P.forEach((p,j)=>j?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.strokeStyle='#5563d8';x.lineWidth=44;x.stroke()}
+  const R=LV[i].routes[0],E=R[R.length-1];
+  x.strokeStyle='#ffd84a';x.lineWidth=16;x.beginPath();x.arc(E[0],E[1],48,0,7);x.stroke();
+}
+function renderStart(){
+  $('diffBtns').innerHTML=DIFF.map((d,i)=>'<button class="'+(i===selDf?'on':'')+'" onclick="pickDf('+i+')">'+d.n+'</button>').join('');
+  $('diffDs').textContent=DIFF[selDf].ds;
+  $('lvGrid').innerHTML=LV.map((l,i)=>{const b=PROG.bl[i+':'+selDf]||0;
+    return '<div class="lvc'+(i===selLv?' on':'')+'" onclick="pickLv('+i+')"><canvas width="160" height="90"></canvas><b>'+(i+1)+'. '+l.n+'</b><span>'+(b>=WIN_WAVE?'🏆 vague '+b:b?'Vague max : '+b:'Jamais joué')+'</span></div>'}).join('');
+  $('lvGrid').querySelectorAll('canvas').forEach((c,i)=>thumb(c,i));
+  $('lvDs').textContent=(selLv+1)+'. '+LV[selLv].n+' — '+LV[selLv].ds;
+}
+function openStart(){
+  if(g.wave>0&&!g.over&&!confirm('Abandonner la partie en cours pour en commencer une nouvelle ?'))return;
+  $('dex').classList.remove('on');selLv=SET.lv;selDf=SET.diff;renderStart();
+  $('startMsg').textContent='';$('startBack').style.display='';$('start').classList.add('on');g.paused=true;
+}
 $('startImp').onclick=()=>$('startFile').click();
 $('startFile').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   importFile(f,ok=>{$('startMsg').textContent=ok?('Sauvegarde chargée.'+lastImportNote):'Fichier invalide ou illisible.';if(ok)setTimeout(closeStart,lastImportNote?1800:400)});
 };
-function closeStart(){$('start').classList.remove('on');g.paused=false}
+function closeStart(){$('start').classList.remove('on');$('startBack').style.display='none';g.paused=false}
 $('bw').onclick=()=>{if(!g.q.length&&!g.en.length&&!g.over)startWave()};
 $('bv').onclick=()=>{g.speed=g.speed===1?2:1;$('bv').textContent='Vitesse ×'+g.speed+' (V)'};
 addEventListener('keydown',ev=>{
+  if($('start').classList.contains('on'))return;
   if(g.won){g.won=false;g.paused=false;return}
   const k=ev.key.toLowerCase();
   if(k==='escape'){if(g.paused)closeDex();return}
   if(k==='e'){g.paused?closeDex():openDex();return}
   if(g.paused)return;
-  if(k==='b')buyBox();else if(k==='u')upgrade();else if(k==='s')sell();
+  if(k==='b')buyBox();else if(k==='u')upgrade();else if(k==='s')sell();else if(k==='n')nuke();
   else if(k==='v')$('bv').onclick();
   else if(k==='r')reset();
   else if(k===' '){ev.preventDefault();$('bw').onclick()}
@@ -525,8 +656,10 @@ function renderDex(){
      '<h3>Météorites</h3><p>Achète une météorite avec tes pièces pour obtenir une tour aléatoire sur un emplacement libre (prix croissant). Sa rareté détermine ses chances d\u2019apparition : Commun et Peu commun sont fréquents, Rare l\u2019est moins, Épique et Légendaire sont exceptionnelles.</p>'+
      '<h3>Améliorer</h3><p>Clique sur une tour posée pour afficher sa fiche à droite : dégâts, rayon d\u2019action, cadence et pouvoir spécial. Le bouton Améliorer augmente son niveau contre des pièces, jusqu\u2019à une limite.</p>'+
      '<h3>Fusionner</h3><p>Glisse une tour sur une autre tour identique (même type, même fusion) pour les fusionner. Cela consomme les deux tours et en donne une seule : fusion +1, niveau +1, et une limite de niveau plus haute. C\u2019est la seule façon de dépasser le niveau maximum d\u2019une tour.</p>'+
+     '<h3>Tour mythique</h3><p>Chaque météorite a 0,1 % de chances de contenir le Néant. Il ne tire pas : il ajoute un bouton Nuke (touche N) qui retire une part des PV max de tous les ennemis à l\u2019écran, de 20 % au niveau 1 jusqu\u2019à 100 % au niveau max (niveau 9, fusion 4) ; les boss subissent moitié moins. Utilisable une fois toutes les 3 vagues. Comme les autres tours, il se fusionne avec un Néant identique pour monter sa limite de niveau.</p>'+
      '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
      '<h3>Sauvegarde</h3><p>Tu peux exporter ta partie dans un fichier .txt depuis les Options, et la réimporter plus tard ou sur un autre ordinateur. Pour éviter de refarmer des pièces en rechargeant une ancienne sauvegarde, une partie ne peut jamais redescendre en dessous de la vague la plus avancée déjà atteinte dans ce navigateur.</p>'+
+     '<h3>Niveaux et difficultés</h3><p>Dix niveaux aux routes différentes : certaines se croisent, repassent sur un tronçon déjà emprunté ou se séparent puis se rejoignent. Trois difficultés (Facile, Moyen, Difficile) modifient la résistance et la vitesse des ennemis, les vies, les pièces de départ et les récompenses. Tu peux changer de niveau depuis les Options (nouvelle partie).</p>'+
      '<h3>Index</h3><p>Le Bestiaire répertorie les Vides déjà vaincus, avec leurs statistiques. L\u2019onglet Tours répertorie les tours déjà obtenues, avec leurs statistiques à chaque niveau débloqué.</p>'+
      '</div>';
     return;
@@ -537,7 +670,8 @@ function renderDex(){
      '<div class="row"><button onclick="exportSave()">Exporter la sauvegarde (.txt)</button><button onclick="document.getElementById(&quot;impFile&quot;).click()">Importer une sauvegarde</button></div>'+
      '<input type="file" id="impFile" accept=".txt,.json" style="display:none">'+
      '<div id="impMsg" class="hint"></div>'+
-     '<div class="row"><button onclick="resetDex()">Réinitialiser les index (bestiaire / tours)</button></div>';
+     '<div class="row"><button onclick="resetDex()">Réinitialiser les index (bestiaire / tours)</button></div>'+
+     '<div class="row"><button onclick="openStart()">Changer de niveau / de difficulté (nouvelle partie)</button></div>';
     $('cards').innerHTML=h;
     $('impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;importFile(f,ok=>{$('impMsg').textContent=ok?('Sauvegarde importée.'+lastImportNote):'Fichier invalide ou illisible.';if(ok)renderDex()})};
     return;
@@ -549,8 +683,8 @@ function renderDex(){
       const d=K[i],ab=[d.ar&&'armure '+Math.round(d.ar*100)+' %',d.rg&&'régénération',d.ims&&'insensible au gel',d.sp2&&'se divise',d.grp&&'en groupe',d.boss&&'boss'].filter(Boolean).join(', ')||'aucune';
       h+='<div class="card"><canvas id="dc'+i+'" width="96" height="96"></canvas><h3>'+d.n+'</h3><div>Vaincus : <b>'+DX.k[i]+'</b></div><div>'+d.ds+'</div><table>'+
        '<tr><td>PV (vague '+w+')</td><td>'+Math.round(hpAt(i,w))+'</td></tr>'+
-       '<tr><td>Vitesse</td><td>'+d.sp+' px/s</td></tr>'+
-       '<tr><td>Récompense</td><td>'+Math.round(d.rw*(1+TUNE.rwGrow*(w-1)))+'💰</td></tr>'+
+       '<tr><td>Vitesse</td><td>'+Math.round(d.sp*DIFF[g.diff].sp)+' px/s</td></tr>'+
+       '<tr><td>Récompense</td><td>'+rwAt(i,w)+'💰</td></tr>'+
        '<tr><td>Vies perdues</td><td>'+(d.life||1)+'</td></tr>'+
        '<tr><td>Capacités</td><td>'+ab+'</td></tr></table></div>';
       draws.push(c=>{const k=Math.min(2.4,36/d.r);c.scale(k,k);drawEnemy(c,{k:i,x:48/k,y:54/k,r:d.r,slowT:0,stT:0,bt:0,hp:1,mx:1})});
@@ -566,9 +700,9 @@ function renderDex(){
        '<div>Niveaux débloqués : '+chips+'</div>'+
        '<div class="row"><button onclick="lvStep('+j+',-1)"'+(l<=1?' disabled':'')+'>◀</button><button onclick="lvStep('+j+',1)"'+(l>=mx?' disabled':'')+'>Niveau '+Math.min(l+1,mx)+' ▶</button></div>'+
        '<table><tr><td>Niveau affiché</td><td>'+l+'</td></tr>'+
-       '<tr><td>Fusion minimale</td><td>'+Math.max(1,Math.ceil((l-1)/2))+'</td></tr>'+
-       '<tr><td>Dégâts</td><td>'+a.dmg+'</td></tr><tr><td>Rayon d\u2019action</td><td>'+a.range+' px</td></tr>'+
-       '<tr><td>Cadence</td><td>'+a.sh+' tirs/s</td></tr><tr><td>Dégâts / seconde</td><td>'+a.dps+'</td></tr></table>'+
+       '<tr><td>Fusion minimale</td><td>'+Math.max(1,Math.ceil((l-1)/2))+'</td></tr>'+(j===MY?'<tr><td>PV max retirés (ennemis)</td><td>'+a.nk+' %</td></tr><tr><td>PV max retirés (boss)</td><td>'+a.nb+' %</td></tr><tr><td>Recharge</td><td>'+a.cdw+' vagues</td></tr>':'')+
+       (j===MY?'':'<tr><td>Dégâts</td><td>'+a.dmg+'</td></tr><tr><td>Rayon d\u2019action</td><td>'+a.range+' px</td></tr>')+
+       (j===MY?'':'<tr><td>Cadence</td><td>'+a.sh+' tirs/s</td></tr><tr><td>Dégâts / seconde</td><td>'+a.dps+'</td></tr>')+'</table>'+
        '<b>'+p[0]+'</b> : '+p[1]+'<br><i>'+p[2]+'</i></div>';
       draws.push(c=>{c.scale(1.5,1.5);drawTower(c,32,30,{type:j,fu:Math.max(1,Math.ceil((l-1)/2)),lvl:l,h:0})});
     }
@@ -577,7 +711,8 @@ function renderDex(){
   const ids=tab==='b'?K.map((d,i)=>i).filter(i=>DX.k[i]>0):T.map((d,i)=>i).filter(j=>DX.t[j]>0);
   ids.forEach((id,n)=>{const c=$((tab==='b'?'dc':'tc')+id).getContext('2d');draws[n](c)});
 }
-reset();g.paused=true;requestAnimationFrame(loop);
+selLv=LV[SET.lv]?SET.lv:0;selDf=DIFF[SET.diff]?SET.diff:1;
+reset();g.paused=true;renderStart();requestAnimationFrame(loop);
 </script>
 </body>
 </html>
