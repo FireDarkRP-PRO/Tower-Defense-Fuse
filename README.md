@@ -47,7 +47,15 @@ Dix niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, La
 | Récompenses | ×1,2 | ×1 | ×0,9 |
 
 ### Sauvegarde
-Ta partie en cours est **sauvegardée automatiquement** dans le navigateur (ennemis en cours compris) : rafraîchir la page ne la supprime pas. Elle est effacée quand le portail tombe. Depuis le menu Options, tu peux aussi exporter ta partie dans un fichier `.txt` et la réimporter plus tard, y compris sur un autre ordinateur.
+Le fichier de sauvegarde (`.txt`, exporté depuis le menu Options) contient **exactement** ce que le navigateur enregistre automatiquement, et inversement :
+- l'**index** (bestiaire et tours débloquées) ;
+- les **réglages** (vagues automatiques, niveau et difficulté choisis) ;
+- les **records** de vague par niveau et par difficulté ;
+- la **partie en cours**, au complet : pièces, vies, vague, ennemis à l'écran et file de la vague, tours (même celles dont la météorite n'est pas encore ouverte), cases de Transformation, palier de fusion, compte à rebours du Nuke.
+
+Ta partie en cours est sauvegardée automatiquement dans le navigateur : rafraîchir la page ne la supprime pas, et elle est reprise là où tu l'avais laissée. Elle est effacée quand le portail tombe.
+
+Importer un fichier remplace tout ce contenu dans le navigateur par celui du fichier, y compris sur un autre ordinateur. Un fichier exporté après une défaite ne contient pas de partie : l'import remet l'index, les réglages et les records, puis lance une nouvelle partie. Les anciens fichiers de sauvegarde restent lisibles.
 
 ## Commandes
 
@@ -67,4 +75,4 @@ Ta partie en cours est **sauvegardée automatiquement** dans le navigateur (enne
 ## Technique
 
 - Un seul fichier `index.html` : HTML, CSS et JavaScript (canvas 2D), sans bibliothèque externe.
-- Index, réglages et partie en cours sont sauvegardés dans le navigateur (`localStorage`, clés `cst-dex`, `cst-set`, `cst-prog`, `cst-game`).
+- Index, réglages, records et partie en cours sont sauvegardés dans le navigateur (`localStorage`, clés `cst-dex`, `cst-set`, `cst-prog`, `cst-game`) ; le fichier d'export en est la copie exacte.

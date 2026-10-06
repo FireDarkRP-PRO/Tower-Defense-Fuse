@@ -333,10 +333,14 @@ if(!PROG.bl||typeof PROG.bl!=='object')PROG.bl={};
 function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStorage.setItem('cst-set',JSON.stringify(SET));localStorage.setItem('cst-prog',JSON.stringify(PROG))}catch(e){}}
 addEventListener('beforeunload',save);
 function unlock(t){if(t.lvl>DX.t[t.type]){DX.t[t.type]=t.lvl;save()}}
+// Le fichier de sauvegarde contient EXACTEMENT ce que le navigateur enregistre (cst-dex, cst-set, cst-prog, cst-game) :
+// l'index, les réglages, les records par niveau et la partie en cours complète (ennemis, file de vague, tours, cases de transformation…).
+function fullState(){
+  save();
+  return{v:5,dex:DX,set:SET,prog:PROG,game:gameState()};
+}
 function exportSave(){
-  const data={v:4,tier:g.tier,xf:g.xf.map(towerData),lv:g.lv,diff:g.diff,nkl:nukeLeft(),coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,autoWave:g.autoWave,
-    slots:S.map(s=>s.t&&s.t.h<=0?{type:s.t.type,fu:s.t.fu,lvl:s.t.lvl,inv:s.t.inv}:null),dex:DX};
-  const blob=new Blob([JSON.stringify(data)],{type:'text/plain'});
+  const blob=new Blob([JSON.stringify(fullState())],{type:'text/plain'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TD-Fuse-sauvegarde.txt';
   document.body.appendChild(a);a.click();a.remove();
 }
@@ -344,7 +348,26 @@ function towerData(t){return t?{type:t.type,fu:t.fu,lvl:t.lvl,h:t.h,h0:t.h0,cool
 function mkT(d,open){return(d&&T[d.type])?{type:d.type,fu:Math.max(1,d.fu|0),lvl:Math.max(1,d.lvl|0),h:open?0:(+d.h||0),h0:open?0:(+d.h0||0),cool:open?0:(+d.cool||0),inv:+d.inv||0,n:d.n|0}:null}
 let lastImportNote='';
 function applySave(data){
-  if(!data||typeof data!=='object'||!Array.isArray(data.slots))return false;
+  if(!data||typeof data!=='object')return false;
+  if(!('game' in data)&&!('dex' in data&&'set' in data&&'prog' in data))return applyLegacySave(data); // anciens fichiers (v4 et avant)
+  if(data.game!=null&&(typeof data.game!=='object'||!Array.isArray(data.game.slots)))return false;
+  const wasPaused=g.paused;
+  const dx=fixDx(data.dex);if(dx)DX=dx;
+  if(data.set&&typeof data.set==='object')SET=Object.assign({autoWave:true,lv:0,diff:1},data.set);
+  if(data.prog&&typeof data.prog==='object'){
+    PROG={best:Math.max(0,+data.prog.best||0),bl:{}};
+    const bl=data.prog.bl&&typeof data.prog.bl==='object'?data.prog.bl:{};
+    for(const k in bl)if(/^\d+:\d+$/.test(k))PROG.bl[k]=Math.max(0,bl[k]|0);
+  }
+  const fileSet=Object.assign({},SET);
+  lastImportNote='';drag=null;
+  if(!(data.game&&restoreGame(data.game))){selLv=LV[SET.lv]?SET.lv:0;selDf=DIFF[SET.diff]?SET.diff:1;reset()}
+  Object.assign(SET,fileSet);selLv=LV[SET.lv]?SET.lv:0;selDf=DIFF[SET.diff]?SET.diff:1;
+  g.paused=wasPaused||g.won;
+  save();persistGame();renderStart();return true;
+}
+function applyLegacySave(data){
+  if(!Array.isArray(data.slots))return false;
   const lv=LV[data.lv]?data.lv|0:0,df=DIFF[data.diff]?data.diff|0:1;
   SET.lv=lv;SET.diff=df;g.lv=lv;g.diff=df;g.rc=0;drag=null;setLevel(lv);selLv=lv;selDf=df;
   g.coins=+data.coins||0;g.lives=data.lives>0?data.lives:DIFF[df].lives;g.boxes=+data.boxes||0;
@@ -886,12 +909,17 @@ function snapshot(){
     nk:g.nk,cont:g.cont,won:g.won,timer:g.timer,cd:g.cd,rc:g.rc,q:g.q,en:g.en.filter(e=>e.hp>0&&!e.dead&&!e.esc),
     slots:S.map(s=>towerData(s.t)),xf:g.xf.map(towerData)};
 }
-function autosave(){
+// État de la partie tel qu'il est enregistré (null quand il n'y a pas de partie à reprendre : partie perdue)
+function gameState(){return g.over?null:snapshot()}
+function persistGame(){
   try{
-    if($('start').classList.contains('on'))return;
-    if(g.over){localStorage.removeItem(GAME_KEY);return}
-    localStorage.setItem(GAME_KEY,JSON.stringify(snapshot()));
+    const st=gameState();
+    if(st)localStorage.setItem(GAME_KEY,JSON.stringify(st));else localStorage.removeItem(GAME_KEY);
   }catch(e){}
+}
+function autosave(){
+  if($('start').classList.contains('on'))return;
+  persistGame();
 }
 function restoreGame(d){
   if(!d||typeof d!=='object'||!Array.isArray(d.slots))return false;
