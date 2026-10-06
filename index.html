@@ -99,29 +99,133 @@ const DIFF=[
 ];
 // ---------- Niveaux (routes) ----------
 // Une route est une liste de points ; elle peut se croiser, repasser sur elle-même, ou fusionner avec une autre route.
-// Tous les niveaux ont 26 emplacements (générés automatiquement, sauf le niveau 1 qui garde sa grille d'origine).
+// Les emplacements sont générés automatiquement (26), sauf pour les niveaux dessinés à la main (Zigzag, Serpent…) qui ont leur propre liste.
 const LV=[
  {n:'Zigzag',ds:'Le parcours classique : trois lignes droites reliées en Z.',
   routes:[[[-40,140],[1000,140],[1000,360],[280,360],[280,580],[1250,580]]],
   slots:(()=>{const a=[];for(let i=0;i<8;i++)a.push([380+i*80,50]);for(let i=0;i<8;i++)a.push([340+i*80,250]);for(let i=0;i<10;i++)a.push([380+i*80,470]);return a})()},
  {n:'Serpent',ds:'Un long serpent à quatre lignes : beaucoup de temps pour tirer.',
-  routes:[[[-40,90],[1120,90],[1120,250],[160,250],[160,410],[1120,410],[1120,580],[250,580]]]},
+  routes:[[[-40,90],[1120,90],[1120,250],[160,250],[160,410],[1120,410],[1120,580],[250,580]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés (pas de 100 px pour des cases de 68 px), placés selon le plan dessiné
+   for(let i=0;i<11;i++)a.push([100+i*100,34]);       // rangée du haut
+   for(let i=0;i<9;i++)a.push([200+i*100,170]);       // entre la 1re et la 2e ligne
+   for(let i=0;i<9;i++)a.push([290+i*100,330]);       // entre la 2e et la 3e ligne
+   for(let i=0;i<7;i++)a.push([380+i*100,495]);       // entre la 3e et la 4e ligne
+   for(let i=0;i<7;i++)a.push([450+i*106,668]);       // rangée du bas
+   [100,200,330,440,540,668].forEach(y=>a.push([1190,y])); // colonne de droite
+   a.push([83,295],[83,395]);                         // côté gauche
+   return a})()},
  {n:'Spirale',ds:'La route s\u2019enroule autour du plateau jusqu\u2019au portail, au centre.',
-  routes:[[[-40,60],[1220,60],[1220,660],[60,660],[60,210],[1070,210],[1070,510],[210,510],[210,360],[640,360]]]},
+  routes:[[[-40,60],[1220,60],[1220,660],[60,660],[60,210],[1070,210],[1070,510],[210,510],[210,360],[640,360]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   for(let i=0;i<11;i++)a.push([70+i*105,137]);       // rangée du haut (anneau extérieur)
+   [227,316,406,496].forEach(y=>a.push([1145,y]));    // colonne de droite
+   for(let i=0;i<11;i++)a.push([135+i*101,585]);      // rangée du bas
+   [382,483].forEach(y=>a.push([135,y]));              // colonne de gauche (le haut est dans la rangée intérieure)
+   for(let i=0;i<5;i++)a.push([135+i*105,280]);       // intérieur : au-dessus de la route du centre
+   for(let i=0;i<4;i++)a.push([285+i*100,440]);       // intérieur : sous la route du centre
+   [780,880,980].forEach(x=>{a.push([x,280]);a.push([x,440])}); // intérieur droit, autour du portail
+   return a})()},
  {n:'Croisement',ds:'La route se recoupe elle-même : les ennemis passent deux fois au centre.',
-  routes:[[[-40,360],[1000,360],[1000,120],[640,120],[640,620],[1200,620]]]},
+  routes:[[[-40,360],[1000,360],[1000,120],[640,120],[640,620],[1200,620]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   for(let i=0;i<6;i++)a.push([555+i*104,35]);        // rangée du haut
+   [135,235,335].forEach(y=>a.push([1075,y]));        // colonne de droite
+   a.push([555,156]);                                 // colonne au-dessus de la route de gauche
+   for(let i=0;i<6;i++)a.push([55+i*100,278]);        // au-dessus de la route de gauche
+   for(let i=0;i<3;i++)a.push([725+i*95,240]);        // intérieur de la boucle
+   for(let i=0;i<6;i++)a.push([75+i*96,440]);         // sous la route de gauche
+   [540,640].forEach(y=>a.push([555,y]));             // colonne sous le croisement
+   for(let i=0;i<4;i++){a.push([715+i*100,440]);a.push([715+i*100,540])} // zone en bas à droite
+   for(let i=0;i<4;i++)a.push([730+i*100,684]);       // rangée sous la route du portail
+   return a})()},
  {n:'Demi-tour',ds:'La route repasse sur son premier tronçon à l\u2019envers, puis part vers le bas.',
-  routes:[[[-40,360],[900,360],[900,150],[1180,150],[1180,360],[300,360],[300,600],[1000,600]]]},
+  routes:[[[-40,360],[900,360],[900,150],[1180,150],[1180,360],[300,360],[300,600],[1000,600]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   for(let i=0;i<8;i++)a.push([55+i*103.6,280]);      // grande rangée au-dessus de la route de gauche
+   a.push([780,190]);                                 // case au-dessus de la fin de la rangée
+   a.push([1000,50],[1100,50]);                       // en haut à droite
+   a.push([975,255],[1100,255]);                      // intérieur de la boucle
+   a.push([1243,200],[1243,300]);                     // à droite de la boucle
+   a.push([85,437],[200,437],[200,537]);              // en bas à gauche (forme en 7)
+   for(let i=0;i<8;i++)a.push([412+i*103.3,470]);     // rangée du milieu, sous la route
+   for(let i=0;i<5;i++)a.push([425+i*105,675]);       // rangée du bas
+   return a.map(p=>[Math.round(p[0]),p[1]])})()},
  {n:'Fourche',ds:'Deux entrées (haut et bas) qui fusionnent sur une seule route vers le portail.',
-  routes:[[[-40,130],[480,130],[480,360],[1000,360],[1000,560],[1200,560]],[[-40,590],[480,590],[480,360],[1000,360],[1000,560],[1200,560]]]},
+  routes:[[[-40,130],[480,130],[480,360],[1000,360],[1000,560],[1200,560]],[[-40,590],[480,590],[480,360],[1000,360],[1000,560],[1200,560]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   for(let i=0;i<6;i++)a.push([55+i*98.6,45]);        // rangée du haut
+   a.push([548,165]);                                 // colonne qui descend vers la route
+   for(let i=0;i<6;i++)a.push([548+i*98.4,285]);      // rangée au-dessus de la route du milieu
+   a.push([1078,415]);                                // à droite de la route du portail
+   for(let i=0;i<4;i++){a.push([75+i*110,215]);a.push([75+i*110,496])} // rangées de la zone de gauche
+   a.push([405,309],[405,402]);                       // côté droit de la zone de gauche
+   for(let i=0;i<6;i++)a.push([68+i*96,670]);         // rangée du bas
+   a.push([548,555]);                                 // colonne qui remonte
+   for(let i=0;i<5;i++)a.push([548+i*95.5,440]);      // rangée sous la route du milieu
+   a.push([930,535],[930,630],[1050,640]);            // côté du portail
+   return a.map(p=>[Math.round(p[0]),p[1]])})()},
  {n:'Îlot',ds:'La route se sépare en deux autour d\u2019un îlot, puis se rejoint avant le portail.',
-  routes:[[[-40,360],[300,360],[300,160],[900,160],[900,360],[1200,360]],[[-40,360],[300,360],[300,560],[900,560],[900,360],[1200,360]]]},
+  routes:[[[-40,360],[300,360],[300,160],[900,160],[900,360],[1200,360]],[[-40,360],[300,360],[300,560],[900,560],[900,360],[1200,360]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   for(let i=0;i<6;i++)a.push([320+i*105,80]);        // rangée du haut
+   for(let i=0;i<5;i++)a.push([370+i*115,648]);       // rangée du bas
+   for(let i=0;i<5;i++){a.push([404+i*102.75,242]);a.push([404+i*102.75,484])} // rectangle central : haut et bas
+   a.push([404,363],[815,363]);                       // rectangle central : côtés
+   a.push([60,282],[160,282],[215,185]);              // à gauche, au-dessus de l\u2019entrée
+   a.push([60,438],[160,438],[215,535]);              // à gauche, sous l\u2019entrée
+   a.push([985,282],[1085,282],[985,185]);            // à droite, au-dessus de la sortie
+   a.push([985,438],[1085,438],[985,535]);            // à droite, sous la sortie
+   return a.map(p=>[Math.round(p[0]),p[1]])})()},
  {n:'Labyrinthe',ds:'Cinq longs couloirs verticaux, entrée par le haut.',
-  routes:[[[200,-40],[200,640],[440,640],[440,80],[680,80],[680,640],[920,640],[920,80],[1160,80],[1160,600]]]},
+  routes:[[[200,-40],[200,640],[440,640],[440,80],[680,80],[680,640],[920,640],[920,80],[1160,80],[1160,600]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, une colonne dans chaque couloir (plus une de chaque côté), selon le plan dessiné
+   for(let i=0;i<6;i++)a.push([120,40+i*105]);        // colonne tout à gauche
+   for(let i=0;i<6;i++)a.push([320,40+i*106]);        // couloir 1
+   for(let i=0;i<6;i++)a.push([553,166+i*103.6]);     // couloir 2
+   for(let i=0;i<6;i++)a.push([795,40+i*98.4]);       // couloir 3
+   for(let i=0;i<6;i++)a.push([1040,180+i*95]);       // couloir 4
+   for(let i=0;i<5;i++)a.push([1235,86+i*91.25]);     // colonne tout à droite
+   return a.map(p=>[Math.round(p[0]),Math.round(p[1])])})()},
  {n:'Entrelacs',ds:'Un entrelacs qui se croise trois fois : les tours centrales travaillent beaucoup.',
-  routes:[[[-40,240],[1000,240],[1000,480],[280,480],[280,120],[640,120],[640,600],[1200,600]]]},
+  routes:[[[-40,240],[1000,240],[1000,480],[280,480],[280,120],[640,120],[640,600],[1200,600]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   [360,480,600].forEach(x=>a.push([x,40]));          // rangée tout en haut
+   [368,459,550].forEach(x=>a.push([x,180]));         // couloir étroit entre les deux routes du haut
+   [75,190].forEach(x=>a.push([x,168]));              // à gauche, au-dessus de l\u2019entrée
+   [730,832,934].forEach(x=>a.push([x,165]));         // à droite, au-dessus de la route
+   [60,175].forEach(x=>a.push([x,318]));              // à gauche, sous l\u2019entrée
+   a.push([200,440]);                                 // petite case sous celles-ci
+   [370,460,550].forEach(x=>{a.push([x,317]);a.push([x,408])}); // cellule centrale gauche
+   [725,825,925].forEach(x=>a.push([x,317]));         // cellule centrale droite, haut
+   [735,825,915].forEach(x=>a.push([x,408]));         // cellule centrale droite, bas
+   a.push([1075,315],[1075,425]);                     // à droite de la boucle
+   [355,458,561].forEach(x=>a.push([x,560]));         // sous la route du milieu, à gauche
+   [740,858,976].forEach(x=>a.push([x,540]));         // couloir étroit au-dessus de la route du portail
+   for(let i=0;i<4;i++)a.push([735+i*109,676]);       // rangée du bas
+   return a})()},
  {n:'Grand détour',ds:'Le parcours le plus long : un grand tour du plateau avant une dernière boucle.',
-  routes:[[[-40,360],[160,360],[160,100],[1120,100],[1120,620],[160,620],[160,440],[1000,440],[1000,220],[280,220],[280,330],[640,330]]]}
+  routes:[[[-40,360],[160,360],[160,100],[1120,100],[1120,620],[160,620],[160,440],[1000,440],[1000,220],[280,220],[280,330],[640,330]]],
+  slots:(()=>{const a=[];
+   // emplacements espacés, placés selon le plan dessiné
+   for(let i=0;i<9;i++)a.push([218+i*105.25,37]);     // rangée tout en haut
+   for(let i=0;i<7;i++)a.push([339+i*96,160]);        // couloir entre la route du haut et la suivante
+   [775,890].forEach(x=>a.push([x,341]));             // à droite du portail
+   a.push([220,280]);                                 // petite case entre les deux routes de gauche
+   for(let i=0;i<8;i++)a.push([273+i*102.9,530]);     // rangée entre les deux grandes routes du bas
+   [100,215].forEach(y=>a.push([80,y]));              // à gauche, en haut
+   [490,600].forEach(y=>a.push([85,y]));              // à gauche, en bas
+   for(let i=0;i<6;i++)a.push([1215,103+i*97.6]);     // colonne de droite
+   for(let i=0;i<10;i++)a.push([182+i*102.6,684]);    // rangée tout en bas
+   return a.map(p=>[Math.round(p[0]),Math.round(p[1])])})()}
 ];
 let RT=[],SG=[],TT=[],selLv=0,selDf=1;
 function dseg(px,py,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;let t=l2?((px-a[0])*dx+(py-a[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)}

@@ -36,7 +36,7 @@ Le Nuke est utilisable **une fois toutes les 3 vagues**. Les dégâts ignorent l
 Les vagues d'ennemis se suivent, avec un boss toutes les 5 vagues. L'écran de victoire s'affiche une seule fois, à la fin de la vague 30 ; ensuite la partie continue sans limite. Dans le menu Options, tu peux choisir si la vague suivante démarre automatiquement ou seulement quand tu appuies sur **Vague suivante** (ou Espace).
 
 ### Niveaux et difficultés
-Dix niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, Labyrinthe, Entrelacs, Grand détour), chacun avec ses 26 emplacements. Trois difficultés :
+Dix niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, Labyrinthe, Entrelacs, Grand détour), chacun avec sa route et ses propres emplacements de tours, espacés et placés à la main (de 26 à 51 selon le niveau). Trois difficultés :
 
 | | Facile | Moyen | Difficile |
 |---|---|---|---|
