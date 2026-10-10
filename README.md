@@ -32,11 +32,28 @@ Chaque météorite a **0,1 %** de chances de contenir le Néant, une tour **Myth
 
 Le Nuke est utilisable **une fois toutes les 3 vagues**. Les dégâts ignorent l'armure et se calculent sur les PV max. Les ennemis tués par un Nuke ne se divisent pas.
 
+### Tour légendaire : l'Aiguilleur
+Une tour **Légendaire** qui ne tire pas (0 dégât) et ne peut apparaître que sur les maps possédant au moins un **croisement** de chemins : Îlot, Delta, Carrefour, Double fourche et Échangeur. Un croisement est un point où plusieurs routes se séparent ; il est matérialisé par un cercle ambre avec de petites marques vers chaque branche.
+- **Obtention** : via la météorite, comme les autres tours, mais elle se pose automatiquement sur un croisement libre (jamais sur un emplacement normal), et seulement s'il en reste un.
+- **Flèche** : elle indique la branche vers laquelle la tour attire les ennemis. Clique sur la tour (ou touche **T**, ou bouton *Tourner la flèche*) pour la faire passer à la branche suivante.
+- **Effet** : quand un ennemi franchit le croisement sur une autre branche, il a une chance d'être redirigé vers celle de la flèche : 15 % au niveau 1, +10 % par niveau, jusqu'à 95 %. Un ennemi n'est redirigé qu'une seule fois par croisement.
+- **Déplacement** : glisse la tour vers un autre croisement libre (impossible de la poser ailleurs, et les autres tours ne peuvent pas aller sur un croisement). Elle se fusionne comme les autres tours.
+
 ### Vagues
-Les vagues d'ennemis se suivent, avec un boss toutes les 5 vagues. L'écran de victoire s'affiche une seule fois, à la fin de la vague 30 ; ensuite la partie continue sans limite. Dans le menu Options, tu peux choisir si la vague suivante démarre automatiquement ou seulement quand tu appuies sur **Vague suivante** (ou Espace).
+Les vagues d'ennemis se suivent, avec un boss toutes les 5 vagues. L'écran de victoire s'affiche une seule fois, à la fin de la vague 30 ; ensuite la partie continue sans limite.
+
+**Équilibrage après la vague 30.** Jusqu'à la vague 30, la résistance des ennemis augmente de 15 % par vague et leurs récompenses de 4 % de la valeur de base. Au-delà, pour que l'argent ne devienne pas un frein (la partie était auparavant très difficile à poursuivre après la vague 35), la courbe change :
+
+| Après la vague 30 | Avant | Maintenant |
+|---|---|---|
+| Résistance des ennemis | +15 % par vague | +6 % par vague |
+| Récompenses | +4 % de la base par vague | +7 % par vague |
+| Taille de la vague | +2 ennemis par vague | +1 ennemi par vague |
+
+Les réglages se trouvent dans l'objet `TUNE` du fichier `index.html` (`softW`, `hpGrow2`, `rwGrow2`, `cnt2`). Dans le menu Options, tu peux choisir si la vague suivante démarre automatiquement ou seulement quand tu appuies sur **Vague suivante** (ou Espace).
 
 ### Niveaux et difficultés
-Dix niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, Labyrinthe, Entrelacs, Grand détour), chacun avec sa route et ses propres emplacements de tours, espacés et placés à la main (de 26 à 51 selon le niveau). Trois difficultés :
+Quatorze niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, Labyrinthe, Entrelacs, Grand détour, puis les maps à croisements Delta, Carrefour, Double fourche et Échangeur), chacun avec sa route et ses propres emplacements de tours (de 26 à 51 selon le niveau ; ceux des quatre dernières maps sont générés automatiquement). Trois difficultés :
 
 | | Facile | Moyen | Difficile |
 |---|---|---|---|
@@ -69,6 +86,7 @@ Importer un fichier remplace tout ce contenu dans le navigateur par celui du fic
 | S | Vendre la tour sélectionnée |
 | Espace | Lancer la vague suivante |
 | V | Changer la vitesse du jeu (×1, ×2, ×3, ×4) |
+| T | Tourner la flèche de l'Aiguilleur sélectionné |
 | E / Échap | Ouvrir ou fermer le menu pause |
 | R | Recommencer (après une défaite) |
 

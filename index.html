@@ -88,7 +88,10 @@ button.on{border-color:var(--gold);background:#1d2160}
 <script>
 const C=document.getElementById('c'),X=C.getContext('2d'),$=id=>document.getElementById(id);
 // ---------- Réglages d'équilibrage ----------
-const TUNE={hp0:22,hpGrow:1.15,dmgGrow:1.35,box0:50,boxStep:6,boxMax:400,up0:20,upGrow:1.5,rwGrow:.04};
+const TUNE={hp0:22,hpGrow:1.15,dmgGrow:1.35,box0:50,boxStep:6,boxMax:400,up0:20,upGrow:1.5,rwGrow:.04,
+  // Après la vague softW (fin de partie) : la résistance des ennemis, leur nombre et leurs récompenses suivent une courbe plus douce,
+  // pour que l'argent rentre aussi vite que les ennemis deviennent costauds et que la partie puisse continuer bien au-delà de la vague 40.
+  softW:30,hpGrow2:1.06,rwGrow2:1.07,cnt2:1};
 const WIN_WAVE=30;
 const cap=f=>1+2*f; // limite de niveau selon la fusion : 3, 5, 7, 9, 11… (fusion infinie)
 // ---------- Difficultés ----------
@@ -225,9 +228,33 @@ const LV=[
    [490,600].forEach(y=>a.push([85,y]));              // à gauche, en bas
    for(let i=0;i<6;i++)a.push([1215,103+i*97.6]);     // colonne de droite
    for(let i=0;i<10;i++)a.push([182+i*102.6,684]);    // rangée tout en bas
-   return a.map(p=>[Math.round(p[0]),Math.round(p[1])])})()}
+   return a.map(p=>[Math.round(p[0]),Math.round(p[1])])})()},
+ // ----- Maps à croisements : l'Aiguilleur légendaire peut s'y poser (emplacements générés automatiquement) -----
+ {n:'Delta',ds:'Un seul croisement ouvre trois voies : droit, par le haut ou par le bas. L\u2019Aiguilleur choisit où vont les ennemis.',ns:30,
+  routes:[
+   [[-40,360],[200,360],[200,110],[1000,110],[1000,360],[1200,360]],
+   [[-40,360],[200,360],[1000,360],[1200,360]],
+   [[-40,360],[200,360],[200,610],[1000,610],[1000,360],[1200,360]]]},
+ {n:'Carrefour',ds:'Deux entrées (gauche et haut) se croisent au centre, puis repartent vers la droite ou vers le bas.',ns:30,
+  routes:[
+   [[-40,360],[640,360],[1000,360],[1000,620],[1200,620]],
+   [[-40,360],[640,360],[640,620],[1200,620]],
+   [[640,-40],[640,360],[1000,360],[1000,620],[1200,620]],
+   [[640,-40],[640,360],[640,620],[1200,620]]]},
+ {n:'Double fourche',ds:'Deux croisements à la suite, chacun avec une voie du haut et une voie du bas : deux Aiguilleurs possibles.',ns:30,
+  routes:[
+   [[-40,360],[250,360],[250,190],[560,190],[560,360],[700,360],[700,190],[1010,190],[1010,360],[1200,360]],
+   [[-40,360],[250,360],[250,190],[560,190],[560,360],[700,360],[700,530],[1010,530],[1010,360],[1200,360]],
+   [[-40,360],[250,360],[250,530],[560,530],[560,360],[700,360],[700,190],[1010,190],[1010,360],[1200,360]],
+   [[-40,360],[250,360],[250,530],[560,530],[560,360],[700,360],[700,530],[1010,530],[1010,360],[1200,360]]]},
+ {n:'Échangeur',ds:'Deux autoroutes parallèles reliées par un pont central : les ennemis peuvent changer de voie à chaque extrémité du pont.',ns:30,
+  routes:[
+   [[-40,150],[640,150],[1000,150],[1000,360],[1200,360]],
+   [[-40,150],[640,150],[640,570],[1000,570],[1000,360],[1200,360]],
+   [[-40,570],[640,570],[1000,570],[1000,360],[1200,360]],
+   [[-40,570],[640,570],[640,150],[1000,150],[1000,360],[1200,360]]]}
 ];
-let RT=[],SG=[],TT=[],selLv=0,selDf=1;
+let RT=[],SG=[],TT=[],JN=[],JR=[],selLv=0,selDf=1;
 function dseg(px,py,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;let t=l2?((px-a[0])*dx+(py-a[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)}
 function dpath(x,y,rs){let m=1e9;for(const P of rs)for(let i=1;i<P.length;i++)m=Math.min(m,dseg(x,y,P[i-1],P[i]));return m}
 function autoSlots(rs,N){
@@ -256,8 +283,22 @@ function setLevel(li){
   const L=LV[li];RT=L.routes;SG=[];TT=[];
   for(const P of RT){const sg=[];let t=0;for(let i=1;i<P.length;i++){const l=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);sg.push(l);t+=l}SG.push(sg);TT.push(t)}
   S.length=0;
-  if(!L.slots)L.slots=autoSlots(RT,26);
+  if(!L.slots)L.slots=autoSlots(RT,L.ns||26);
   L.slots.forEach(p=>S.push({x:p[0],y:p[1],t:null}));
+  // Croisements : un sommet partagé par plusieurs routes qui repartent dans des directions différentes
+  JN=[];JR=RT.map(()=>[]);
+  {const mp=new Map();
+   RT.forEach((P,r)=>{let d=0;for(let i=1;i<P.length-1;i++){d+=SG[r][i-1];const k=P[i][0]+','+P[i][1];if(!mp.has(k))mp.set(k,[]);mp.get(k).push({r,d,nx:P[i+1]})}});
+   for(const [k,rs] of mp){
+    const nx=[];rs.forEach(o=>{if(!nx.some(n=>n[0]===o.nx[0]&&n[1]===o.nx[1]))nx.push(o.nx)});
+    if(nx.length<2)continue;
+    const [x,y]=k.split(',').map(Number),jn=JN.length;
+    const br=nx.map(n=>({ang:Math.atan2(n[1]-y,n[0]-x),nx:n,recs:[]})).sort((a,b)=>a.ang-b.ang);
+    rs.forEach(o=>{const b=br.findIndex(q=>q.nx[0]===o.nx[0]&&q.nx[1]===o.nx[1]);br[b].recs.push({r:o.r,d:o.d});JR[o.r].push({d:o.d,jn,b})});
+    JN.push({x,y,br});
+   }}
+  JR.forEach(a=>a.sort((p,q)=>p.d-q.d));
+  JN.forEach((j,i)=>S.push({x:j.x,y:j.y,t:null,j:i+1}));
 }
 function at(d,r){
   const P=RT[r],sg=SG[r];
@@ -278,17 +319,20 @@ const T=[
  {n:'Traqueur',c:'#ff4d4d',rar:2,w:3,d:20,r:280,cd:1.3,st:4},
  {n:'Prisme',c:'#ffffff',rar:3,w:1.5,d:18,r:230,cd:1.2,st:6},
  {n:'Singularité',c:'#7a3cff',rar:4,w:.6,d:40,r:240,cd:2.4,sd:24},
- {n:'Néant',c:'#ff3df2',rar:5,w:0,d:0,r:0,cd:1,st:8}
+ {n:'Néant',c:'#ff3df2',rar:5,w:0,d:0,r:0,cd:1,st:8},
+ {n:'Aiguilleur',c:'#ffb020',rar:4,w:.8,d:0,r:0,cd:1,sd:3}
 ];
 // Tour mythique : ne tire pas, offre un bouton « Nuke » (dégâts en % des PV max)
 const MY=10,MYTH_CHANCE=.001,MYTH_CD=3,MYTH_UP=6; // MYTH_UP : multiplicateur du prix d'amélioration (légendaire : ×2,2)
+// Tour légendaire « Aiguilleur » : ne tire pas ; posée sur un croisement de chemins, elle attire une part des ennemis vers la branche indiquée par sa flèche.
+const GT=11,gtPct=l=>Math.min(.95,.15+.1*(l-1)); // niv 1 : 15 %  →  niv 9 : 95 % (plafond)
 const capOf=t=>cap(t.fu); // le Néant suit la règle de fusion normale : niveau max 9 (fusion 4 minimum)
 const nukePct=l=>Math.min(1,.1+.1*l); // niv 1 : 20 %  →  niv 9 (max) : 100 %
 const dm=(j,l)=>Math.round(T[j].d*Math.pow(TUNE.dmgGrow,l-1));
 const rg=(j,l)=>Math.round(T[j].r*(1+.03*(l-1)));
 const cdv=(j,l)=>T[j].cd*Math.pow(.97,l-1);
 const f1=x=>+x.toFixed(1);
-function stat(j,l){if(j===MY){const p=nukePct(l);return{dmg:0,range:0,sh:0,dps:0,nk:Math.round(p*100),nb:Math.round(p*50),cdw:MYTH_CD}}
+function stat(j,l){if(j===GT)return{dmg:0,range:0,sh:0,dps:0,pc:Math.round(gtPct(l)*100)};if(j===MY){const p=nukePct(l);return{dmg:0,range:0,sh:0,dps:0,nk:Math.round(p*100),nb:Math.round(p*50),cdw:MYTH_CD}}
   const c=cdv(j,l),d=dm(j,l);return{dmg:d,range:rg(j,l),sh:+(1/c).toFixed(2),dps:Math.round(d/c)}}
 function pw(j,l){return[
  ['Surcharge','Un tir sur 5 inflige ×'+f1(2+.1*(l-1))+' dégâts.','Toutes les '+f1(5*cdv(0,l))+' s'],
@@ -301,7 +345,8 @@ function pw(j,l){return[
  ['Marque','La cible subit +'+(25+2*(l-1))+' % de dégâts.','Durée : 3 s'],
  ['Multi-tir','Tire sur plusieurs cibles à la fois.','Cibles : '+(2+(l>>2))],
  ['Trou noir','Zone de 80 px et recul de '+(50+5*(l-1))+' px.','Instantané'],
- ['Nuke','Ne tire pas. Le bouton Nuke (N) retire '+Math.round(nukePct(l)*100)+' % des PV max de tous les ennemis ('+Math.round(nukePct(l)*50)+' % pour les boss).','Utilisable 1 fois toutes les '+MYTH_CD+' vagues']
+ ['Nuke','Ne tire pas. Le bouton Nuke (N) retire '+Math.round(nukePct(l)*100)+' % des PV max de tous les ennemis ('+Math.round(nukePct(l)*50)+' % pour les boss).','Utilisable 1 fois toutes les '+MYTH_CD+' vagues'],
+ ['Aiguillage','Ne tire pas. Posé sur un croisement de chemins, il attire '+Math.round(gtPct(l)*100)+' % des ennemis qui passent vers la branche indiquée par sa flèche (une seule fois par croisement et par ennemi).','Clique dessus ou touche T pour le tourner']
 ][j]}
 // ---------- Ennemis (15) ----------
 const K=[
@@ -321,8 +366,11 @@ const K=[
  {n:'Titan',sp:26,hp:40,r:30,rw:100,c:'#5c6bc0',sh:'block',from:10,w:0,boss:1,life:8,ar:.4,ims:1,ds:'Boss blindé, insensible au gel.'},
  {n:'Hydre',sp:28,hp:60,r:32,rw:150,c:'#00897b',sh:'spike',from:15,w:0,boss:1,life:10,rg:.02,sp2:[4,3],ds:'Boss qui régénère et libère trois Colosses.'}
 ];
-const hpAt=(k,w)=>TUNE.hp0*Math.pow(TUNE.hpGrow,w-1)*K[k].hp*DIFF[g.diff].hp;
-const rwAt=(k,w)=>Math.round(K[k].rw*(1+TUNE.rwGrow*(w-1))*DIFF[g.diff].rw);
+const hpMul=w=>w<=TUNE.softW?Math.pow(TUNE.hpGrow,w-1):Math.pow(TUNE.hpGrow,TUNE.softW-1)*Math.pow(TUNE.hpGrow2,w-TUNE.softW);
+const rwMul=w=>w<=TUNE.softW?1+TUNE.rwGrow*(w-1):(1+TUNE.rwGrow*(TUNE.softW-1))*Math.pow(TUNE.rwGrow2,w-TUNE.softW);
+const waveSize=w=>5+2*Math.min(w,TUNE.softW)+Math.max(0,w-TUNE.softW)*TUNE.cnt2;
+const hpAt=(k,w)=>TUNE.hp0*hpMul(w)*K[k].hp*DIFF[g.diff].hp;
+const rwAt=(k,w)=>Math.round(K[k].rw*rwMul(w)*DIFF[g.diff].rw);
 // ---------- Index (sauvegardé dans le navigateur) ----------
 let DX=null;try{DX=JSON.parse(localStorage.getItem('cst-dex'))}catch(e){}
 function fixDx(d){if(!d||!Array.isArray(d.k)||d.k.length!==K.length||!Array.isArray(d.t))return null;return{k:d.k,t:T.map((_,i)=>Math.max(0,d.t[i]|0))}}
@@ -344,8 +392,8 @@ function exportSave(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TD-Fuse-sauvegarde.txt';
   document.body.appendChild(a);a.click();a.remove();
 }
-function towerData(t){return t?{type:t.type,fu:t.fu,lvl:t.lvl,h:t.h,h0:t.h0,cool:t.cool,inv:t.inv,n:t.n}:null}
-function mkT(d,open){return(d&&T[d.type])?{type:d.type,fu:Math.max(1,d.fu|0),lvl:Math.max(1,d.lvl|0),h:open?0:(+d.h||0),h0:open?0:(+d.h0||0),cool:open?0:(+d.cool||0),inv:+d.inv||0,n:d.n|0}:null}
+function towerData(t){return t?{type:t.type,fu:t.fu,lvl:t.lvl,h:t.h,h0:t.h0,cool:t.cool,inv:t.inv,n:t.n,o:t.o|0}:null}
+function mkT(d,open){return(d&&T[d.type])?{type:d.type,fu:Math.max(1,d.fu|0),lvl:Math.max(1,d.lvl|0),h:open?0:(+d.h||0),h0:open?0:(+d.h0||0),cool:open?0:(+d.cool||0),inv:+d.inv||0,n:d.n|0,o:d.o|0}:null}
 let lastImportNote='';
 function applySave(data){
   if(!data||typeof data!=='object')return false;
@@ -405,16 +453,17 @@ function reset(){
 function buyBox(n){
   n=n||1;
   if(g.over||g.paused)return;
-  const free=S.filter(s=>!s.t);
+  const free=S.filter(s=>!s.t&&!s.j);
   if(!free.length)return say('Plus de place : fusionne des tours identiques pour libérer des emplacements.');
   const p=boxPrice(n);
   if(g.coins<p)return say('Pas assez de pièces pour une météorite'+(n>1?' de fusion '+n:'')+' ('+p+').');
   g.coins-=p;g.boxes++;
-  let r=Math.random()*T.reduce((a,d)=>a+d.w,0),ty=0;
-  for(let i=0;i<T.length;i++){r-=T[i].w;if(r<=0){ty=i;break}}
+  const fj=S.filter(o=>o.j&&!o.t),wt=T.map((d,i)=>i===GT&&!fj.length?0:d.w); // l'Aiguilleur n'apparaît que s'il reste un croisement libre
+  let r=Math.random()*wt.reduce((a,v)=>a+v,0),ty=0;
+  for(let i=0;i<T.length;i++){r-=wt[i];if(r<=0){ty=i;break}}
   if(Math.random()<MYTH_CHANCE)ty=MY;
-  const s=free[Math.floor(Math.random()*free.length)];
-  s.t={type:ty,fu:n,lvl:1,h:1.6,h0:1.6,cool:0,inv:p,n:0};
+  const pl=ty===GT?fj:free,s=pl[Math.floor(Math.random()*pl.length)];
+  s.t={type:ty,fu:n,lvl:1,h:1.6,h0:1.6,cool:0,inv:p,n:0,o:0};
   g.sel=s;say('La météorite s\u2019ouvre…');
 }
 function upgrade(){
@@ -425,6 +474,25 @@ function upgrade(){
   g.coins-=p;t.inv+=p;t.lvl++;unlock(t);
   g.fx.push({x:s.x,y:s.y,r:10,mx:50,c:'#fff',l:.35,m:.35});
 }
+function rotGT(){
+  const s=g.sel,t=s&&s.t;if(!t||t.type!==GT||t.h>0||!s.j||g.over)return;
+  const J=JN[s.j-1];t.o=((t.o|0)+1)%J.br.length;
+  say('Aiguilleur tourné : '+Math.round(gtPct(t.lvl)*100)+' % des ennemis seront attirés dans la direction de la flèche.');
+}
+// Un ennemi qui franchit un croisement équipé peut être attiré vers la branche pointée (une seule fois par croisement)
+function aig(e,d0){
+  for(const q of JR[e.rt]){
+    if(!(d0<q.d&&e.d>=q.d)||((e.sw|0)>>q.jn&1))continue;
+    const s=S.find(o=>o.j===q.jn+1),t=s&&s.t;
+    if(!t||t.type!==GT||t.h>0)continue;
+    const J=JN[q.jn],b=(t.o|0)%J.br.length;
+    if(b===q.b||Math.random()>=gtPct(t.lvl))continue;
+    const rs=J.br[b].recs,rc=rs[Math.floor(Math.random()*rs.length)];
+    e.sw=(e.sw|0)|(1<<q.jn);e.rt=rc.r;e.d=rc.d+(e.d-q.d);
+    g.fx.push({x:J.x,y:J.y,r:6,mx:46,c:T[GT].c,l:.35,m:.35});
+    break;
+  }
+}
 function sell(){const s=g.sel;if(!s||!s.t||g.over)return;g.coins+=sellVal(s.t);s.t=null;g.sel=null}
 function fuse(a,b){
   const x=a.t,y=b.t;
@@ -432,7 +500,7 @@ function fuse(a,b){
   if(x.type!==y.type||x.fu!==y.fu)return say('Fusion impossible : il faut deux tours identiques (même type et même fusion).');
   // Pas de niveau offert, sauf si les deux tours sont au niveau max (jamais en Difficile)
   const gain=(x.lvl>=capOf(x)&&y.lvl>=capOf(y)&&g.diff<2)?1:0;
-  b.t={type:x.type,fu:x.fu+1,lvl:Math.max(x.lvl,y.lvl)+gain,h:0,h0:0,cool:0,inv:x.inv+y.inv,n:0};
+  b.t={type:x.type,fu:x.fu+1,lvl:Math.max(x.lvl,y.lvl)+gain,h:0,h0:0,cool:0,inv:x.inv+y.inv,n:0,o:y.o|0};
   a.t=null;g.sel=b;unlock(b.t);
   g.fx.push({x:b.x,y:b.y,r:10,mx:90,c:T[x.type].c,l:.5,m:.5});
   say(T[x.type].n+' : fusion '+b.t.fu+', niveau '+b.t.lvl+' (limite '+cap(b.t.fu)+')'+(gain?' — bonus : les deux tours étaient au niveau max.':'.'));
@@ -451,7 +519,7 @@ function putXf(s,i){
 function xfClick(i){
   if(g.over)return;
   if(g.xf[i]){
-    const s=S.find(o=>!o.t);
+    const s=S.find(o=>!o.t&&!o.j===(g.xf[i].type!==GT));
     if(!s)return say('Plus de place sur le plateau pour reprendre cette tour.');
     s.t=g.xf[i];g.xf[i]=null;g.sel=s;return;
   }
@@ -465,7 +533,7 @@ function transformXf(){
 }
 function startWave(){
   g.wave++;PROG.best=Math.max(PROG.best,g.wave);{const k=g.lv+':'+g.diff;PROG.bl[k]=Math.max(PROG.bl[k]||0,g.wave)}save();g.timer=12;
-  const w=g.wave,n=5+w*2,ids=K.map((d,i)=>i),el=ids.filter(i=>!K[i].boss&&K[i].from<=w),tw=el.reduce((a,i)=>a+K[i].w,0);
+  const w=g.wave,n=Math.round(waveSize(w)),ids=K.map((d,i)=>i),el=ids.filter(i=>!K[i].boss&&K[i].from<=w),tw=el.reduce((a,i)=>a+K[i].w,0);
   for(let i=0;i<n;i++){
     let r=Math.random()*tw,k=el[0];
     for(const e of el){r-=K[e].w;if(r<=0){k=e;break}}
@@ -536,7 +604,8 @@ function update(dt){
     if(e.slowT>0)e.slowT-=dt;if(e.stT>0)e.stT-=dt;if(e.mkT>0)e.mkT-=dt;if(e.hurtT>0)e.hurtT-=dt;if(e.kb>0)e.kb=Math.max(0,e.kb-25*dt);
     if(e.bt>0){e.bt-=dt;e.hp-=e.bn*dt}
     if(d.rg&&e.hp>0&&e.hurtT<=0)e.hp=Math.min(e.mx,e.hp+e.mx*d.rg*dt);
-    if(e.stT<=0)e.d+=e.sp*(e.slowT>0?.5:1)*dt;
+    const d0=e.d;if(e.stT<=0)e.d+=e.sp*(e.slowT>0?.5:1)*dt;
+    if(e.d>d0&&JR[e.rt]&&JR[e.rt].length)aig(e,d0);
     [e.x,e.y]=at(e.d,e.rt);
     if(e.d>=TT[e.rt]){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu ou appuie sur R pour rejouer.')}}
   }
@@ -544,10 +613,10 @@ function update(dt){
     const t=s.t;if(!t)continue;
     if(t.h>0){
       t.h-=dt;
-      if(t.h<=0){say(t.type===MY?'✨ Tour MYTHIQUE : Néant ! Utilise le bouton Nuke (N) pendant une vague.':(DX.t[t.type]?'':'Nouvelle tour découverte : ')+T[t.type].n+' !');unlock(t);g.fx.push({x:s.x,y:s.y,r:10,mx:70,c:T[t.type].c,l:.4,m:.4})}
+      if(t.h<=0){say(t.type===GT?'✨ Aiguilleur légendaire posé sur un croisement : clique dessus (ou touche T) pour tourner sa flèche.':t.type===MY?'✨ Tour MYTHIQUE : Néant ! Utilise le bouton Nuke (N) pendant une vague.':(DX.t[t.type]?'':'Nouvelle tour découverte : ')+T[t.type].n+' !');unlock(t);g.fx.push({x:s.x,y:s.y,r:10,mx:70,c:T[t.type].c,l:.4,m:.4})}
       continue;
     }
-    if(t.type===MY)continue;
+    if(t.type===MY||t.type===GT)continue;
     t.cool-=dt;if(t.cool>0)continue;
     const j=t.type,l=t.lvl,r=rg(j,l);
     const tg=g.en.filter(e=>Math.hypot(e.x-s.x,e.y-s.y)<=r).sort((a,b)=>b.d-a.d).slice(0,j===8?2+(l>>2):1);
@@ -633,13 +702,17 @@ function shape(X,x,y,r,j,rot){
   else{for(let i=0;i<d.sd;i++){const a=rot+i*2*Math.PI/d.sd;X.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r)}}
   X.closePath();
 }
+function arrowShape(X,x,y,r,a){
+  X.save();X.translate(x,y);X.rotate(a);X.beginPath();
+  X.moveTo(r*1.5,0);X.lineTo(r*.2,-r);X.lineTo(r*.2,-r*.45);X.lineTo(-r*1.2,-r*.45);X.lineTo(-r*1.2,r*.45);X.lineTo(r*.2,r*.45);X.lineTo(r*.2,r);X.closePath();X.restore();
+}
 function drawTower(X,x,y,t,ghost){
   const d=T[t.type],al=ghost?.7:1;
   X.save();X.globalAlpha=al;
   if(t.h>0){drawMeteor(X,x,y,1-t.h/t.h0);X.restore();return}
   const fe=Math.min(t.fu,4),rad=18+(fe-1)*3;
-  X.shadowColor=d.c;X.shadowBlur=16;X.fillStyle=d.c;shape(X,x,y,rad,t.type,-Math.PI/2);X.fill();X.shadowBlur=0;
-  X.fillStyle=t.type===9?'#000':'rgba(8,10,28,.55)';shape(X,x,y,rad*.5,t.type,-Math.PI/2+.3);X.fill();
+  X.shadowColor=d.c;X.shadowBlur=16;X.fillStyle=d.c;(t.type===GT?arrowShape(X,x,y,rad,t.ang||0):shape(X,x,y,rad,t.type,-Math.PI/2));X.fill();X.shadowBlur=0;
+  X.fillStyle=t.type===9?'#000':'rgba(8,10,28,.55)';(t.type===GT?arrowShape(X,x,y,rad*.5,t.ang||0):shape(X,x,y,rad*.5,t.type,-Math.PI/2+.3));X.fill();
   X.strokeStyle='#fff';X.lineWidth=1.5;X.globalAlpha=al*.55;
   for(let i=1;i<fe;i++){shape(X,x,y,rad+3+i*5,t.type,-Math.PI/2);X.stroke()}
   X.globalAlpha=al;
@@ -681,13 +754,20 @@ function draw(){
   X.strokeStyle='#ffd84a';X.lineWidth=4;X.shadowColor='#ffd84a';X.shadowBlur=20;
   X.beginPath();X.arc(E[0],E[1],34,0,7);X.stroke();X.shadowBlur=0;
   for(const s of S){
+    if(s.j){
+      X.strokeStyle=g.sel===s?'#ffd84a':'#9a7220';X.lineWidth=2;X.setLineDash([6,5]);
+      X.beginPath();X.arc(s.x,s.y,34,0,7);X.stroke();X.setLineDash([]);
+      if(!s.t)for(const b of JN[s.j-1].br){X.strokeStyle='rgba(255,176,32,.4)';X.lineWidth=3;X.beginPath();X.moveTo(s.x+Math.cos(b.ang)*40,s.y+Math.sin(b.ang)*40);X.lineTo(s.x+Math.cos(b.ang)*60,s.y+Math.sin(b.ang)*60);X.stroke()}
+      continue;
+    }
     X.strokeStyle=g.sel===s?'#ffd84a':'#2b3070';X.lineWidth=2;X.setLineDash([6,5]);
     X.strokeRect(s.x-34,s.y-34,68,68);X.setLineDash([]);
   }
-  if(g.sel&&g.sel.t&&g.sel.t.h<=0&&g.sel.t.type!==MY){
+  if(g.sel&&g.sel.t&&g.sel.t.h<=0&&g.sel.t.type!==MY&&g.sel.t.type!==GT){
     X.strokeStyle='rgba(255,255,255,.25)';X.lineWidth=1.5;
     X.beginPath();X.arc(g.sel.x,g.sel.y,rg(g.sel.t.type,g.sel.t.lvl),0,7);X.stroke();
   }
+  for(const s of S)if(s.t&&s.t.type===GT&&s.j){const J=JN[s.j-1];s.t.ang=J.br[(s.t.o|0)%J.br.length].ang}
   for(const s of S)if(s.t&&!(drag&&drag.s===s&&drag.moved))drawTower(X,s.x,s.y,s.t);
   for(const e of g.en)drawEnemy(X,e);
   for(const b of g.bl){X.fillStyle=T[b.ty].c;X.shadowColor=T[b.ty].c;X.shadowBlur=10;X.beginPath();X.arc(b.x,b.y,5,0,7);X.fill();X.shadowBlur=0}
@@ -720,16 +800,16 @@ function sheet(){
   }
   const j=t.type,d=T[j],m=capOf(t),max=t.lvl>=m,p=upc(t);
   const pn=S.filter(o=>o!==s&&o.t&&o.t.h<=0&&o.t.type===j&&o.t.fu===t.fu).length;
-  const sg=[S.indexOf(s),j,t.fu,t.lvl,g.coins>=p,pn,g.tier,g.diff].join();
+  const sg=[S.indexOf(s),j,t.fu,t.lvl,t.o|0,g.coins>=p,pn,g.tier,g.diff].join();
   if(el.dataset.sg===sg)return;el.dataset.sg=sg;
   const a=stat(j,t.lvl),b=max?null:stat(j,t.lvl+1),w=pw(j,t.lvl);
-  const R=j===MY?[['PV max retirés (ennemis)','nk',' %'],['PV max retirés (boss)','nb',' %'],['Recharge','cdw',' vagues']]:[['Dégâts','dmg',''],['Rayon d\u2019action','range',' px'],['Cadence','sh',' tirs/s'],['Dégâts / seconde','dps','']];
+  const R=j===GT?[['Ennemis attirés','pc',' %']]:j===MY?[['PV max retirés (ennemis)','nk',' %'],['PV max retirés (boss)','nb',' %'],['Recharge','cdw',' vagues']]:[['Dégâts','dmg',''],['Rayon d\u2019action','range',' px'],['Cadence','sh',' tirs/s'],['Dégâts / seconde','dps','']];
   const rows=R.map(r=>'<tr><td>'+r[0]+'</td><td>'+a[r[1]]+r[2]+(b&&b[r[1]]!==a[r[1]]?' <span class="up">→ '+b[r[1]]+r[2]+'</span>':'')+'</td></tr>').join('');
   el.innerHTML='<h2 style="color:'+d.c+'">'+d.n+'</h2><div style="color:'+RC[d.rar]+'">'+RN[d.rar]+'</div><div>Fusion '+t.fu+' · niveau '+t.lvl+'/'+m+'</div>'+
    '<table>'+rows+'</table><b>Pouvoir : '+w[0]+'</b><br>'+w[1]+'<br><i>'+w[2]+'</i>'+
    '<p><b>Fusion</b> : '+'avec une '+d.n+' de fusion '+t.fu+' → fusion '+(t.fu+1)+', niveau conservé'+(g.diff<2?' (+1 si les deux sont au niveau max)':' (aucun gain en Difficile)')+', limite '+cap(t.fu+1)+'.'+'<br>Partenaires sur le plateau : '+pn+'</p>'+
    (max?'<p class="up">Niveau max : fusionne pour continuer.</p>':'')+
-   '<div class="row"><button onclick="upgrade()"'+(max||g.coins<p?' disabled':'')+'>'+(max?'Niveau max':'Améliorer '+p+'💰 (U)')+'</button><button onclick="sell()">Vendre +'+sellVal(t)+'💰 (S)</button></div>';
+   (j===GT?'<div class="row"><button onclick="rotGT()">↻ Tourner la flèche (T)</button></div>':'')+'<div class="row"><button onclick="upgrade()"'+(max||g.coins<p?' disabled':'')+'>'+(max?'Niveau max':'Améliorer '+p+'💰 (U)')+'</button><button onclick="sell()">Vendre +'+sellVal(t)+'💰 (S)</button></div>';
 }
 function xfPanel(){
   const el=$('xf'),need=g.tier+1;
@@ -780,8 +860,11 @@ addEventListener('mouseup',ev=>{
   const el=document.elementFromPoint(ev.clientX,ev.clientY),xs=el&&el.closest&&el.closest('.xs');
   if(d.moved&&xs){putXf(d.s,+xs.dataset.i);return}
   const s=slotAt(pos(ev));
-  if(!d.moved||!s||s===d.s){g.sel=d.s;return}
-  if(s.t)fuse(d.s,s);else{s.t=d.s.t;d.s.t=null;g.sel=s}
+  if(!d.moved||!s||s===d.s){if(!d.moved&&g.sel===d.s&&d.s.t.type===GT)rotGT();g.sel=d.s;return}
+  if(s.t){fuse(d.s,s);return}
+  const isG=d.s.t.type===GT;
+  if(!!s.j!==isG){say(isG?'L\u2019Aiguilleur ne se pose que sur un croisement de chemins.':'Cet emplacement de croisement est réservé à l\u2019Aiguilleur.');return}
+  s.t=d.s.t;d.s.t=null;g.sel=s
 });
 $('bb').onclick=()=>buyBox(g.tier);$('bu').onclick=()=>buyBox(Math.max(1,g.tier-1));$('bn').onclick=nuke;$('bd').onclick=()=>openDex();
 $('startNew').onclick=()=>{SET.lv=selLv;SET.diff=selDf;save();reset();closeStart()};
@@ -824,7 +907,7 @@ addEventListener('keydown',ev=>{
   if(k==='escape'){if(g.paused)closeDex();return}
   if(k==='e'){g.paused?closeDex():openDex();return}
   if(g.paused)return;
-  if(k==='b')$('bb').onclick();else if(k==='f'&&g.tier>=2)$('bu').onclick();else if(k==='u')upgrade();else if(k==='s')sell();else if(k==='n')nuke();
+  if(k==='b')$('bb').onclick();else if(k==='f'&&g.tier>=2)$('bu').onclick();else if(k==='u')upgrade();else if(k==='s')sell();else if(k==='n')nuke();else if(k==='t')rotGT();
   else if(k==='v')$('bv').onclick();
   else if(k==='r')reset();
   else if(k===' '){ev.preventDefault();$('bw').onclick()}
@@ -848,9 +931,10 @@ function renderDex(){
      '<h3>Transformation</h3><p>Dans le panneau Transformation, place 3 tours de fusion 2 : elles sont consommées et débloquent un bouton de météorites de fusion 2 (touche B). Le bouton d\u2019origine passe à moitié prix (la revente des tours de ce niveau aussi). Avec 3 tours de fusion 3, tu débloques la fusion 3, et le bouton à moitié prix devient la fusion 2, et ainsi de suite à l\u2019infini.</p>'+
      '<h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4.</p>'+
      '<h3>Tour mythique</h3><p>Chaque météorite a 0,1 % de chances de contenir le Néant. Il ne tire pas : il ajoute un bouton Nuke (touche N) qui retire une part des PV max de tous les ennemis à l\u2019écran, de 20 % au niveau 1 jusqu\u2019à 100 % au niveau max (niveau 9, fusion 4) ; les boss subissent moitié moins. Utilisable une fois toutes les 3 vagues. Comme les autres tours, il se fusionne avec un Néant identique pour monter sa limite de niveau.</p>'+
-     '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
+     '<h3>Tour légendaire : l\u2019Aiguilleur</h3><p>Il ne tire pas. Sur les maps à croisements (Îlot, Delta, Carrefour, Double fourche, Échangeur), la météorite peut le poser automatiquement sur un croisement libre. Sa flèche indique la branche vers laquelle il attire une part des ennemis qui passent (15 % au niveau 1, jusqu\u2019à 95 %). Clique sur la tour (ou touche T) pour la tourner ; glisse-la vers un autre croisement pour la déplacer. Chaque ennemi n\u2019est attiré qu\u2019une fois par croisement.</p>'+
+     '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Jusqu\u2019à la vague 30 la difficulté monte vite ; ensuite elle grimpe plus doucement et les récompenses suivent, pour que tu puisses continuer très loin. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
      '<h3>Sauvegarde</h3><p>Ta partie en cours est sauvegardée automatiquement dans le navigateur : rafraîchir la page ne la supprime pas. Tu peux aussi l\u2019exporter dans un fichier .txt depuis les Options, et la réimporter plus tard ou sur un autre ordinateur.</p>'+
-     '<h3>Niveaux et difficultés</h3><p>Dix niveaux aux routes différentes : certaines se croisent, repassent sur un tronçon déjà emprunté ou se séparent puis se rejoignent. Trois difficultés (Facile, Moyen, Difficile) modifient la résistance et la vitesse des ennemis, les vies, les pièces de départ et les récompenses. Tu peux changer de niveau depuis les Options (nouvelle partie).</p>'+
+     '<h3>Niveaux et difficultés</h3><p>Quatorze niveaux aux routes différentes : certaines se croisent, repassent sur un tronçon déjà emprunté ou se séparent puis se rejoignent. Trois difficultés (Facile, Moyen, Difficile) modifient la résistance et la vitesse des ennemis, les vies, les pièces de départ et les récompenses. Tu peux changer de niveau depuis les Options (nouvelle partie).</p>'+
      '<h3>Index</h3><p>Le Bestiaire répertorie les Vides déjà vaincus, avec leurs statistiques. L\u2019onglet Tours répertorie les tours déjà obtenues, avec leurs statistiques à chaque niveau débloqué.</p>'+
      '</div>';
     return;
@@ -891,9 +975,9 @@ function renderDex(){
        '<div>Niveaux débloqués : '+chips+'</div>'+
        '<div class="row"><button onclick="lvStep('+j+',-1)"'+(l<=1?' disabled':'')+'>◀</button><button onclick="lvStep('+j+',1)"'+(l>=mx?' disabled':'')+'>Niveau '+Math.min(l+1,mx)+' ▶</button></div>'+
        '<table><tr><td>Niveau affiché</td><td>'+l+'</td></tr>'+
-       '<tr><td>Fusion minimale</td><td>'+Math.max(1,Math.ceil((l-1)/2))+'</td></tr>'+(j===MY?'<tr><td>PV max retirés (ennemis)</td><td>'+a.nk+' %</td></tr><tr><td>PV max retirés (boss)</td><td>'+a.nb+' %</td></tr><tr><td>Recharge</td><td>'+a.cdw+' vagues</td></tr>':'')+
-       (j===MY?'':'<tr><td>Dégâts</td><td>'+a.dmg+'</td></tr><tr><td>Rayon d\u2019action</td><td>'+a.range+' px</td></tr>')+
-       (j===MY?'':'<tr><td>Cadence</td><td>'+a.sh+' tirs/s</td></tr><tr><td>Dégâts / seconde</td><td>'+a.dps+'</td></tr>')+'</table>'+
+       '<tr><td>Fusion minimale</td><td>'+Math.max(1,Math.ceil((l-1)/2))+'</td></tr>'+(j===GT?'<tr><td>Ennemis attirés</td><td>'+a.pc+' %</td></tr>':'')+(j===MY?'<tr><td>PV max retirés (ennemis)</td><td>'+a.nk+' %</td></tr><tr><td>PV max retirés (boss)</td><td>'+a.nb+' %</td></tr><tr><td>Recharge</td><td>'+a.cdw+' vagues</td></tr>':'')+
+       (j===MY||j===GT?'':'<tr><td>Dégâts</td><td>'+a.dmg+'</td></tr><tr><td>Rayon d\u2019action</td><td>'+a.range+' px</td></tr>')+
+       (j===MY||j===GT?'':'<tr><td>Cadence</td><td>'+a.sh+' tirs/s</td></tr><tr><td>Dégâts / seconde</td><td>'+a.dps+'</td></tr>')+'</table>'+
        '<b>'+p[0]+'</b> : '+p[1]+'<br><i>'+p[2]+'</i></div>';
       draws.push(c=>{c.scale(1.5,1.5);drawTower(c,32,30,{type:j,fu:Math.max(1,Math.ceil((l-1)/2)),lvl:l,h:0})});
     }
