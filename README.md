@@ -1,4 +1,4 @@
-# Constellations – Tower Defense à fusion
+# TD Fuse – Tower Defense à fusion
 
 Un tower defense navigateur, jouable directement en ouvrant `index.html` ou via GitHub Pages, sans installation ni dépendance : tout tient dans un seul fichier HTML.
 
