@@ -48,7 +48,7 @@ Une tour **Légendaire** qui ne tire pas (0 dégât) et ne peut apparaître que 
 - **Déplacement** : glisse la tour vers un autre croisement libre (impossible de la poser ailleurs, et les autres tours ne peuvent pas aller sur un croisement). Elle se fusionne comme les autres tours.
 
 ### Vagues
-Les vagues d'ennemis se suivent, avec un boss toutes les 5 vagues. L'écran de victoire s'affiche une seule fois, à la fin de la vague 30 ; ensuite la partie continue sans limite.
+Les vagues d'ennemis se suivent, avec un boss toutes les 5 vagues. Toutes les 25 vagues terminées, un **boss supplémentaire** s'ajoute aux vagues de boss : 1 boss jusqu'à la vague 25, 2 boss de la vague 30 à la 50, 3 à partir de la 55, et ainsi de suite. L'écran de victoire s'affiche une seule fois, à la fin de la vague 30 ; ensuite la partie continue sans limite.
 
 **Équilibrage après la vague 30.** Jusqu'à la vague 30, la résistance des ennemis augmente de 15 % par vague et leurs récompenses de 4 % de la valeur de base. Au-delà, pour que l'argent ne devienne pas un frein (la partie était auparavant très difficile à poursuivre après la vague 35), la courbe change :
 
@@ -71,10 +71,13 @@ Quatorze niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlo
 | Vitesse des ennemis | ×0,9 | ×1 | ×1,12 |
 | Récompenses | ×1,2 | ×1 | ×0,9 |
 
+### Jeu en arrière-plan
+Dans le menu Options, la case **« Continuer à jouer en arrière-plan »** (décochée par défaut) fait continuer la partie quand tu changes d'onglet, de fenêtre ou que tu minimises le navigateur, sans fermer le jeu. Elle utilise un minuteur dans un Worker, que le navigateur ne ralentit pas. Si elle est décochée, le navigateur met le jeu en pause tant que l'onglet est caché. À savoir : une partie qui tourne seule peut se perdre sans surveillance, et le navigateur peut mettre l'onglet en veille s'il manque de mémoire. Le réglage est enregistré avec les réglages (sauvegarde et export).
+
 ### Sauvegarde
 Le fichier de sauvegarde (`.txt`, exporté depuis le menu Options) contient **exactement** ce que le navigateur enregistre automatiquement, et inversement :
 - l'**index** (bestiaire et tours débloquées) ;
-- les **réglages** (vagues automatiques, tours d'abord dans l'inventaire, niveau et difficulté choisis) ;
+- les **réglages** (vagues automatiques, tours d'abord dans l'inventaire, jeu en arrière-plan, niveau et difficulté choisis) ;
 - les **records** de vague par niveau et par difficulté ;
 - la **partie en cours**, au complet : pièces, vies, vague, ennemis à l'écran et file de la vague, tours (même celles dont la météorite n'est pas encore ouverte), inventaire, cases de Transformation, palier de fusion, compte à rebours du Nuke.
 
@@ -93,10 +96,9 @@ Importer un fichier remplace tout ce contenu dans le navigateur par celui du fic
 | U | Améliorer la tour sélectionnée |
 | S | Vendre la tour sélectionnée |
 | Espace | Lancer la vague suivante |
-| V | Changer la vitesse du jeu (×1, ×2, ×3, ×4) ; le champ à côté du bouton permet de choisir n'importe quelle vitesse de ×1 à ×100 |
+| V | Changer la vitesse du jeu (×1, ×2, ×3, ×4) ; le champ à côté du bouton permet de choisir n'importe quelle vitesse sans limite |
 | T | Tourner la flèche de l'Aiguilleur sélectionné |
 | E / Échap | Ouvrir ou fermer le menu pause |
-| R | Recommencer (après une défaite) |
 
 ## Technique
 

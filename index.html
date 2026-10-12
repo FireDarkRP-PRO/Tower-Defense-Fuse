@@ -74,7 +74,7 @@ button.on{border-color:var(--gold);background:#1d2160}
   <button id="bw">Vague suivante (Espace)</button>
   <button id="bn" style="display:none"></button>
   <button id="bv">Vitesse ×1 (V)</button>
-  <input id="sp" type="number" min="1" max="100" step="1" value="1" title="Vitesse personnalisée : de ×1 à ×100">
+  <input id="sp" type="number" min="1" step="1" value="1" title="Vitesse personnalisée : tape la vitesse que tu veux">
   <button id="bd">Pause · Index (E)</button>
 </div>
 <div id="dex"><div id="dexbox">
@@ -391,7 +391,7 @@ const rwAt=(k,w)=>Math.round(K[k].rw*rwMul(w)*DIFF[g.diff].rw);
 let DX=null;try{DX=JSON.parse(localStorage.getItem('cst-dex'))}catch(e){}
 function fixDx(d){if(!d||!Array.isArray(d.k)||d.k.length!==K.length||!Array.isArray(d.t))return null;return{k:d.k,t:T.map((_,i)=>Math.max(0,d.t[i]|0))}}
 DX=fixDx(DX)||{k:K.map(()=>0),t:T.map(()=>0)};
-let SET={autoWave:true,lv:0,diff:1,invFirst:false};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
+let SET={autoWave:true,lv:0,diff:1,invFirst:false,bg:false};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
 let PROG={best:0,bl:{}};try{Object.assign(PROG,JSON.parse(localStorage.getItem('cst-prog'))||{})}catch(e){}
 if(!PROG.bl||typeof PROG.bl!=='object')PROG.bl={};
 function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStorage.setItem('cst-set',JSON.stringify(SET));localStorage.setItem('cst-prog',JSON.stringify(PROG))}catch(e){}}
@@ -417,7 +417,7 @@ function applySave(data){
   if(data.game!=null&&(typeof data.game!=='object'||!Array.isArray(data.game.slots)))return false;
   const wasPaused=g.paused;
   const dx=fixDx(data.dex);if(dx)DX=dx;
-  if(data.set&&typeof data.set==='object')SET=Object.assign({autoWave:true,lv:0,diff:1,invFirst:false},data.set);
+  if(data.set&&typeof data.set==='object')SET=Object.assign({autoWave:true,lv:0,diff:1,invFirst:false,bg:false},data.set);syncBg();
   if(data.prog&&typeof data.prog==='object'){
     PROG={best:Math.max(0,+data.prog.best||0),bl:{}};
     const bl=data.prog.bl&&typeof data.prog.bl==='object'?data.prog.bl:{};
@@ -627,7 +627,11 @@ function startWave(){
     for(const e of el){r-=K[e].w;if(r<=0){k=e;break}}
     for(let m=0;m<(K[k].grp||1);m++)g.q.push(k);
   }
-  if(w%5===0){const bs=ids.filter(i=>K[i].boss&&K[i].from<=w);g.q.push(bs[(w/5-1)%bs.length]);say('Un boss approche.')}
+  if(w%5===0){
+    const bs=ids.filter(i=>K[i].boss&&K[i].from<=w),bk=bs[(w/5-1)%bs.length],nb=1+Math.floor((w-1)/25); // +1 boss toutes les 25 vagues terminées : 1 jusqu'à la vague 25, 2 à partir de la 30, 3 à partir de la 55…
+    for(let b=0;b<nb;b++)g.q.push(bk);
+    say(nb>1?nb+' boss approchent !':'Un boss approche.');
+  }
   else say('Vague '+w+' en approche.');
   g.cd=0;
 }
@@ -695,7 +699,7 @@ function update(dt){
     const d0=e.d;if(e.stT<=0)e.d+=e.sp*(e.slowT>0?.5:1)*dt;
     if(e.d>d0&&JR[e.rt]&&JR[e.rt].length)aig(e,d0);
     [e.x,e.y]=at(e.d,e.rt);
-    if(e.d>=TT[e.rt]){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu ou appuie sur R pour rejouer.')}}
+    if(e.d>=TT[e.rt]){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu pour rejouer.')}}
   }
   tickInv(dt);
   for(const s of S){
@@ -925,7 +929,30 @@ function hud(){
   sheet();
 }
 let last=performance.now();
+// ---------- Jeu en arrière-plan (option) ----------
+// Un onglet caché n'affiche plus d'images (requestAnimationFrame s'arrête) : un minuteur dans un Worker, non ralenti par le navigateur, prend le relais.
+let lastFrame=performance.now(),bgLast=performance.now(),bgW=null,bgI=null;
+function bgTick(){
+  const now=performance.now();
+  if(!SET.bg||!g||now-lastFrame<250){bgLast=now;return} // onglet visible : le jeu tourne déjà image par image
+  const e=Math.min((now-bgLast)/1000,5);bgLast=now;
+  if(g.over||g.paused)return;
+  g.bgacc=(g.bgacc||0)+e*g.speed;const t0=performance.now();
+  while(g.bgacc>=1/60&&!g.over&&!g.paused){update(1/60);g.bgacc-=1/60;if(performance.now()-t0>80){g.bgacc=0;break}}
+}
+function syncBg(){
+  if(SET.bg&&!bgW&&!bgI){
+    try{
+      const u=URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'],{type:'text/javascript'}));
+      bgW=new Worker(u);bgW.onmessage=bgTick;bgW.onerror=()=>{try{bgW.terminate()}catch(e){}bgW=null;if(SET.bg&&!bgI)bgI=setInterval(bgTick,1000)};
+    }catch(e){bgI=setInterval(bgTick,1000)}
+  }else if(!SET.bg){
+    if(bgW){bgW.terminate();bgW=null}
+    if(bgI){clearInterval(bgI);bgI=null}
+  }
+}
 function loop(ts){
+  lastFrame=performance.now();
   const dt=Math.min(.05,(ts-last)/1000);last=ts;
   if(!g.over&&!g.paused){
     // g.speed mises à jour par image ; à très haute vitesse on s'arrête dès qu'on dépasse le temps alloué pour que la page reste fluide
@@ -1001,13 +1028,12 @@ $('startFile').onchange=e=>{
 };
 function closeStart(){$('start').classList.remove('on');$('startBack').style.display='none';g.paused=false}
 $('bw').onclick=()=>{if(!g.q.length&&!g.en.length&&!g.over)startWave()};
-// Vitesse : de ×1 à ×100, au choix (bouton / touche V = ×1 → ×4, champ = valeur libre)
-const SPEED_MAX=100;
+// Vitesse : sans plafond, au choix (bouton / touche V = ×1 → ×4, champ = valeur libre)
 function syncSpeed(){
   $('bv').textContent='Vitesse ×'+g.speed+(g.capped&&g.speed>4?' (limitée par ton appareil)':'')+' (V)';
   if(document.activeElement!==$('sp'))$('sp').value=g.speed;
 }
-function setSpeed(v){v=Math.round(parseFloat(v));if(!(v>=1))v=1;g.speed=Math.min(SPEED_MAX,v);g.acc=0;syncSpeed()}
+function setSpeed(v){v=Math.round(parseFloat(v));if(!(v>=1))v=1;g.speed=Math.min(1e9,v);g.acc=0;syncSpeed()}
 $('bv').onclick=()=>setSpeed(g.speed>=4?1:g.speed+1);
 $('sp').oninput=()=>{if($('sp').value!=='')setSpeed($('sp').value)};
 $('sp').onchange=()=>{setSpeed($('sp').value||1);$('sp').value=g.speed};
@@ -1021,11 +1047,11 @@ addEventListener('keydown',ev=>{
   if(g.paused)return;
   if(k==='b')$('bb').onclick();else if(k==='f'&&g.tier>=2)$('bu').onclick();else if(k==='u')upgrade();else if(k==='s')sell();else if(k==='n')nuke();else if(k==='t')rotGT();
   else if(k==='v')$('bv').onclick();
-  else if(k==='r')reset();
   else if(k===' '){ev.preventDefault();$('bw').onclick()}
 });
 // ---------- Menu pause : bestiaire et tours ----------
 function setTab(t){tab=t;renderDex()}
+function toggleBg(){SET.bg=!SET.bg;syncBg();save();renderDex()}
 function toggleInvFirst(){SET.invFirst=!SET.invFirst;save();renderDex()}
 function toggleAuto(){g.autoWave=!g.autoWave;SET.autoWave=g.autoWave;save();renderDex()}
 function openDex(t){g.paused=true;save();if(t)tab=t;$('dex').classList.add('on');renderDex()}
@@ -1042,10 +1068,10 @@ function renderDex(){
      '<h3>Améliorer</h3><p>Clique sur une tour posée pour afficher sa fiche à droite : dégâts, rayon d\u2019action, cadence et pouvoir spécial. Le bouton Améliorer augmente son niveau contre des pièces, jusqu\u2019à une limite.</p>'+
      '<h3>Fusionner</h3><p>Glisse une tour sur une autre tour identique (même type, même fusion) pour les fusionner. Cela consomme les deux tours et en donne une seule : fusion +1 et une limite de niveau plus haute (le niveau est conservé ; +1 seulement si les deux tours sont au niveau max, jamais en Difficile). Il n\u2019y a pas de limite de fusion.</p>'+
      '<h3>Transformation</h3><p>Dans le panneau Transformation, place 3 tours de fusion 2 : elles sont consommées et débloquent un bouton de météorites de fusion 2 (touche B). Le bouton d\u2019origine passe à moitié prix (la revente des tours de ce niveau aussi). Avec 3 tours de fusion 3, tu débloques la fusion 3, et le bouton à moitié prix devient la fusion 2, et ainsi de suite à l\u2019infini.</p>'+
-     '<h3>Inventaire</h3><p>L\u2019inventaire a 10 places, partagées entre les tours normales et l\u2019Aiguilleur. Une nouvelle tour y arrive quand il n\u2019y a plus de place pour elle sur le plateau (plus d\u2019emplacement libre, ou plus de croisement libre pour l\u2019Aiguilleur), ou dès qu\u2019il reste une place si l\u2019option « Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire » est cochée dans les paramètres. La météorite s\u2019y ouvre comme sur le plateau. Les tours rangées sont inactives : clique dessus pour les poser sur le plateau, glisse-les sur une tour identique pour fusionner, ou clic droit pour les vendre. Tu peux aussi y ranger une tour du plateau en la glissant dessus.</p><h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4. À côté du bouton, le champ numérique te laisse choisir la vitesse que tu veux, de ×1 à ×100. Si ton appareil n\u2019arrive pas à suivre, le jeu va moins vite que demandé plutôt que de se figer. La vitesse revient à ×1 à chaque nouvelle partie.</p>'+
+     '<h3>Inventaire</h3><p>L\u2019inventaire a 10 places, partagées entre les tours normales et l\u2019Aiguilleur. Une nouvelle tour y arrive quand il n\u2019y a plus de place pour elle sur le plateau (plus d\u2019emplacement libre, ou plus de croisement libre pour l\u2019Aiguilleur), ou dès qu\u2019il reste une place si l\u2019option « Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire » est cochée dans les paramètres. La météorite s\u2019y ouvre comme sur le plateau. Les tours rangées sont inactives : clique dessus pour les poser sur le plateau, glisse-les sur une tour identique pour fusionner, ou clic droit pour les vendre. Tu peux aussi y ranger une tour du plateau en la glissant dessus.</p><h3>Jeu en arrière-plan</h3><p>Dans l\u2019onglet Options, la case « Continuer à jouer en arrière-plan » (décochée par défaut) fait tourner la partie même quand tu changes d\u2019onglet ou de fenêtre. Sinon, le navigateur met le jeu en pause tant que l\u2019onglet est caché.</p><h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4. À côté du bouton, le champ numérique te laisse choisir la vitesse que tu veux, sans limite. Si ton appareil n\u2019arrive pas à suivre, le jeu va moins vite que demandé plutôt que de se figer. La vitesse revient à ×1 à chaque nouvelle partie.</p>'+
      '<h3>Tour mythique</h3><p>Chaque météorite a 0,1 % de chances de contenir le Néant. Il ne tire pas : il ajoute un bouton Nuke (touche N) qui retire une part des PV max de tous les ennemis à l\u2019écran, de 20 % au niveau 1 jusqu\u2019à 100 % au niveau max (niveau 9, fusion 4) ; les boss subissent moitié moins. Utilisable une fois toutes les 3 vagues. Comme les autres tours, il se fusionne avec un Néant identique pour monter sa limite de niveau.</p>'+
      '<h3>Tour légendaire : l\u2019Aiguilleur</h3><p>Il ne tire pas. Sur les maps à croisements (Îlot, Delta, Carrefour, Double fourche, Échangeur), la météorite peut le poser automatiquement sur un croisement libre. Sa flèche indique la branche vers laquelle il attire une part des ennemis qui passent (15 % au niveau 1, jusqu\u2019à 95 %). Clique sur la tour (ou touche T) pour la tourner ; glisse-la vers un autre croisement pour la déplacer. Chaque ennemi n\u2019est attiré qu\u2019une fois par croisement.</p>'+
-     '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Jusqu\u2019à la vague 30 la difficulté monte vite ; ensuite elle grimpe plus doucement et les récompenses suivent, pour que tu puisses continuer très loin. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
+     '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues, et un boss supplémentaire s\u2019ajoute toutes les 25 vagues terminées (1 boss jusqu\u2019à la vague 25, 2 de la vague 30 à la 50, 3 à partir de la 55, etc.). Jusqu\u2019à la vague 30 la difficulté monte vite ; ensuite elle grimpe plus doucement et les récompenses suivent, pour que tu puisses continuer très loin. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
      '<h3>Sauvegarde</h3><p>Ta partie en cours est sauvegardée automatiquement dans le navigateur : rafraîchir la page ne la supprime pas. Tu peux aussi l\u2019exporter dans un fichier .txt depuis les Options, et la réimporter plus tard ou sur un autre ordinateur.</p>'+
      '<h3>Niveaux et difficultés</h3><p>Quatorze niveaux aux routes différentes : certaines se croisent, repassent sur un tronçon déjà emprunté ou se séparent puis se rejoignent. Trois difficultés (Facile, Moyen, Difficile) modifient la résistance et la vitesse des ennemis, les vies, les pièces de départ et les récompenses. Tu peux changer de niveau depuis les Options (nouvelle partie).</p>'+
      '<h3>Index</h3><p>Le Bestiaire répertorie les Vides déjà vaincus, avec leurs statistiques. L\u2019onglet Tours répertorie les tours déjà obtenues, avec leurs statistiques à chaque niveau débloqué.</p>'+
@@ -1057,6 +1083,8 @@ function renderDex(){
      '<p style="margin-top:0">Si décoché, aucune vague ne démarre tant que tu n\u2019appuies pas sur « Vague suivante » (ou Espace).</p>'+
      '<div class="opt"><input type="checkbox" id="invChk" '+(SET.invFirst?'checked':'')+' onchange="toggleInvFirst()"><label for="invChk">Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire</label></div>'+
      '<p style="margin-top:0">Si coché, une météorite achetée tombe dans l\u2019inventaire tant qu\u2019il reste une place, puis sur le plateau. Si décoché, elle tombe sur le plateau, puis dans l\u2019inventaire quand il n\u2019y a plus de place pour elle.</p>'+
+     '<div class="opt"><input type="checkbox" id="bgChk" '+(SET.bg?'checked':'')+' onchange="toggleBg()"><label for="bgChk">Continuer à jouer en arrière-plan</label></div>'+
+     '<p style="margin-top:0">Si coché, la partie continue de tourner quand tu changes d\u2019onglet ou de fenêtre, sans fermer le jeu. Si décoché, elle se met en pause automatiquement tant que l\u2019onglet n\u2019est pas visible (comportement du navigateur). Attention : une partie qui tourne seule peut être perdue si tu ne la surveilles pas, et ton navigateur peut quand même mettre l\u2019onglet en veille s\u2019il manque de mémoire.</p>'+
      '<div class="row"><button onclick="exportSave()">Exporter la sauvegarde (.txt)</button><button onclick="document.getElementById(&quot;impFile&quot;).click()">Importer une sauvegarde</button></div>'+
      '<input type="file" id="impFile" accept=".txt,.json" style="display:none">'+
      '<div id="impMsg" class="hint"></div>'+
@@ -1144,7 +1172,7 @@ reset();g.paused=true;renderStart();
 {let sv=null;try{sv=JSON.parse(localStorage.getItem(GAME_KEY))}catch(e){}
  let ok=false;try{ok=restoreGame(sv)}catch(e){ok=false}
  if(ok){closeStart();g.paused=g.won;say('Partie reprise là où tu l\u2019avais laissée.')}else if(sv){reset();g.paused=true;renderStart()}}
-requestAnimationFrame(loop);
+syncBg();requestAnimationFrame(loop);
 </script>
 </body>
 </html>
