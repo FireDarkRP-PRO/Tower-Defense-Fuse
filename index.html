@@ -34,6 +34,8 @@ td:last-child{text-align:right;font-weight:700}
 .up{color:#7dff9a}
 #msg{min-height:20px;font-size:15px;color:#9fb0ff}
 #bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+#sp{width:64px;font:inherit;font-weight:700;color:var(--text);background:#0b0d26;border:2px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center}
+#sp:focus{outline:none;border-color:var(--gold)}
 button{font:inherit;font-weight:700;color:var(--text);background:var(--panel);border:2px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer}
 button:hover{border-color:var(--gold)}
 button:focus-visible{outline:3px solid var(--gold)}
@@ -72,6 +74,7 @@ button.on{border-color:var(--gold);background:#1d2160}
   <button id="bw">Vague suivante (Espace)</button>
   <button id="bn" style="display:none"></button>
   <button id="bv">Vitesse ×1 (V)</button>
+  <input id="sp" type="number" min="1" max="100" step="1" value="1" title="Vitesse personnalisée : de ×1 à ×100">
   <button id="bd">Pause · Index (E)</button>
 </div>
 <div id="dex"><div id="dexbox">
@@ -474,7 +477,7 @@ function say(m){$('msg').textContent=m}
 function reset(){
   const lv=LV[SET.lv]?SET.lv:0,df=DIFF[SET.diff]?SET.diff:1,D=DIFF[df];
   g={coins:D.coins,lives:D.lives,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,won:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave,lv,diff:df,rc:0,nk:-99,cont:false,tier:1,xf:[null,null,null],inv:Array(INV_N).fill(null)};
-  drag=null;invDrag=null;setLevel(lv);$('bv').textContent='Vitesse ×1 (V)';
+  drag=null;invDrag=null;setLevel(lv);g.capped=false;syncSpeed();
   say('Achète une météorite pour obtenir ta première tour.');
 }
 function buyBox(n){
@@ -924,7 +927,15 @@ function hud(){
 let last=performance.now();
 function loop(ts){
   const dt=Math.min(.05,(ts-last)/1000);last=ts;
-  for(let i=0;i<g.speed&&!g.over&&!g.paused;i++)update(dt);
+  if(!g.over&&!g.paused){
+    // g.speed mises à jour par image ; à très haute vitesse on s'arrête dès qu'on dépasse le temps alloué pour que la page reste fluide
+    g.acc=(g.acc||0)+g.speed;const t0=performance.now();let n=0,cap=false;
+    while(g.acc>=1&&!g.over&&!g.paused){
+      update(dt);g.acc--;n++;
+      if(n>=4&&g.acc>=1&&performance.now()-t0>14){g.acc=0;cap=true;break}
+    }
+    if(cap!==!!g.capped){g.capped=cap;syncSpeed()}
+  }
   draw();requestAnimationFrame(loop);
 }
 // ---------- Entrées ----------
@@ -990,7 +1001,17 @@ $('startFile').onchange=e=>{
 };
 function closeStart(){$('start').classList.remove('on');$('startBack').style.display='none';g.paused=false}
 $('bw').onclick=()=>{if(!g.q.length&&!g.en.length&&!g.over)startWave()};
-$('bv').onclick=()=>{g.speed=g.speed>=4?1:g.speed+1;$('bv').textContent='Vitesse ×'+g.speed+' (V)'};
+// Vitesse : de ×1 à ×100, au choix (bouton / touche V = ×1 → ×4, champ = valeur libre)
+const SPEED_MAX=100;
+function syncSpeed(){
+  $('bv').textContent='Vitesse ×'+g.speed+(g.capped&&g.speed>4?' (limitée par ton appareil)':'')+' (V)';
+  if(document.activeElement!==$('sp'))$('sp').value=g.speed;
+}
+function setSpeed(v){v=Math.round(parseFloat(v));if(!(v>=1))v=1;g.speed=Math.min(SPEED_MAX,v);g.acc=0;syncSpeed()}
+$('bv').onclick=()=>setSpeed(g.speed>=4?1:g.speed+1);
+$('sp').oninput=()=>{if($('sp').value!=='')setSpeed($('sp').value)};
+$('sp').onchange=()=>{setSpeed($('sp').value||1);$('sp').value=g.speed};
+$('sp').onkeydown=ev=>{ev.stopPropagation();if(ev.key==='Enter'||ev.key==='Escape')$('sp').blur()};
 addEventListener('keydown',ev=>{
   if($('start').classList.contains('on'))return;
   if(g.won){g.won=false;g.paused=false;return}
@@ -1021,7 +1042,7 @@ function renderDex(){
      '<h3>Améliorer</h3><p>Clique sur une tour posée pour afficher sa fiche à droite : dégâts, rayon d\u2019action, cadence et pouvoir spécial. Le bouton Améliorer augmente son niveau contre des pièces, jusqu\u2019à une limite.</p>'+
      '<h3>Fusionner</h3><p>Glisse une tour sur une autre tour identique (même type, même fusion) pour les fusionner. Cela consomme les deux tours et en donne une seule : fusion +1 et une limite de niveau plus haute (le niveau est conservé ; +1 seulement si les deux tours sont au niveau max, jamais en Difficile). Il n\u2019y a pas de limite de fusion.</p>'+
      '<h3>Transformation</h3><p>Dans le panneau Transformation, place 3 tours de fusion 2 : elles sont consommées et débloquent un bouton de météorites de fusion 2 (touche B). Le bouton d\u2019origine passe à moitié prix (la revente des tours de ce niveau aussi). Avec 3 tours de fusion 3, tu débloques la fusion 3, et le bouton à moitié prix devient la fusion 2, et ainsi de suite à l\u2019infini.</p>'+
-     '<h3>Inventaire</h3><p>L\u2019inventaire a 10 places, partagées entre les tours normales et l\u2019Aiguilleur. Une nouvelle tour y arrive quand il n\u2019y a plus de place pour elle sur le plateau (plus d\u2019emplacement libre, ou plus de croisement libre pour l\u2019Aiguilleur), ou dès qu\u2019il reste une place si l\u2019option « Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire » est cochée dans les paramètres. La météorite s\u2019y ouvre comme sur le plateau. Les tours rangées sont inactives : clique dessus pour les poser sur le plateau, glisse-les sur une tour identique pour fusionner, ou clic droit pour les vendre. Tu peux aussi y ranger une tour du plateau en la glissant dessus.</p><h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4.</p>'+
+     '<h3>Inventaire</h3><p>L\u2019inventaire a 10 places, partagées entre les tours normales et l\u2019Aiguilleur. Une nouvelle tour y arrive quand il n\u2019y a plus de place pour elle sur le plateau (plus d\u2019emplacement libre, ou plus de croisement libre pour l\u2019Aiguilleur), ou dès qu\u2019il reste une place si l\u2019option « Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire » est cochée dans les paramètres. La météorite s\u2019y ouvre comme sur le plateau. Les tours rangées sont inactives : clique dessus pour les poser sur le plateau, glisse-les sur une tour identique pour fusionner, ou clic droit pour les vendre. Tu peux aussi y ranger une tour du plateau en la glissant dessus.</p><h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4. À côté du bouton, le champ numérique te laisse choisir la vitesse que tu veux, de ×1 à ×100. Si ton appareil n\u2019arrive pas à suivre, le jeu va moins vite que demandé plutôt que de se figer. La vitesse revient à ×1 à chaque nouvelle partie.</p>'+
      '<h3>Tour mythique</h3><p>Chaque météorite a 0,1 % de chances de contenir le Néant. Il ne tire pas : il ajoute un bouton Nuke (touche N) qui retire une part des PV max de tous les ennemis à l\u2019écran, de 20 % au niveau 1 jusqu\u2019à 100 % au niveau max (niveau 9, fusion 4) ; les boss subissent moitié moins. Utilisable une fois toutes les 3 vagues. Comme les autres tours, il se fusionne avec un Néant identique pour monter sa limite de niveau.</p>'+
      '<h3>Tour légendaire : l\u2019Aiguilleur</h3><p>Il ne tire pas. Sur les maps à croisements (Îlot, Delta, Carrefour, Double fourche, Échangeur), la météorite peut le poser automatiquement sur un croisement libre. Sa flèche indique la branche vers laquelle il attire une part des ennemis qui passent (15 % au niveau 1, jusqu\u2019à 95 %). Clique sur la tour (ou touche T) pour la tourner ; glisse-la vers un autre croisement pour la déplacer. Chaque ennemi n\u2019est attiré qu\u2019une fois par croisement.</p>'+
      '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Jusqu\u2019à la vague 30 la difficulté monte vite ; ensuite elle grimpe plus doucement et les récompenses suivent, pour que tu puisses continuer très loin. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+

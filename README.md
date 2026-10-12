@@ -93,7 +93,7 @@ Importer un fichier remplace tout ce contenu dans le navigateur par celui du fic
 | U | Améliorer la tour sélectionnée |
 | S | Vendre la tour sélectionnée |
 | Espace | Lancer la vague suivante |
-| V | Changer la vitesse du jeu (×1, ×2, ×3, ×4) |
+| V | Changer la vitesse du jeu (×1, ×2, ×3, ×4) ; le champ à côté du bouton permet de choisir n'importe quelle vitesse de ×1 à ×100 |
 | T | Tourner la flèche de l'Aiguilleur sélectionné |
 | E / Échap | Ouvrir ou fermer le menu pause |
 | R | Recommencer (après une défaite) |
