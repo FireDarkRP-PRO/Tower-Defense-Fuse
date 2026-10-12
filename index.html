@@ -12,14 +12,19 @@ body{margin:0;height:100vh;overflow:hidden;background:var(--void);color:var(--te
 #top b{color:var(--gold)}
 #main{display:flex;gap:10px;align-items:flex-start}
 canvas{width:min(100vw - 360px,(100vh - 130px)*16/9);height:auto;aspect-ratio:16/9;border:2px solid var(--line);border-radius:10px;background:#0b0d26;cursor:pointer}
-#side{width:320px;display:flex;flex-direction:column;gap:8px}
-#xf{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:10px;font-size:13px;line-height:1.4}
-#xf h3{margin:0 0 4px}
+#side{width:320px;display:flex;flex-direction:column;gap:8px;max-height:calc(min(100vw - 360px,(100vh - 130px)*16/9)*9/16 + 4px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+#side>*{flex:none}
+#xf,#inv{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:10px;font-size:13px;line-height:1.4}
+#xf h3,#inv h3{margin:0 0 4px}
+.irow{display:grid;grid-template-columns:repeat(5,52px);gap:6px;justify-content:center;margin-top:8px}
+.is{width:52px;height:52px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;background:#0b0d26}
+.is:hover{border-color:var(--gold)}
+.is canvas{width:100%;height:100%;aspect-ratio:auto;border:0;border-radius:0;background:none;cursor:pointer}
 .xrow{display:flex;gap:10px;justify-content:center;margin-top:8px}
 .xs{width:70px;height:70px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;background:#0b0d26}
 .xs:hover{border-color:var(--gold)}
 .xs canvas{width:100%;height:100%;aspect-ratio:auto;border:0;border-radius:0;background:none;cursor:pointer}
-#sheet{width:100%;background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:12px;font-size:14px;line-height:1.45;max-height:calc(100vh - 300px);overflow:auto}
+#sheet{width:100%;background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:12px;font-size:14px;line-height:1.45;}
 #sheet h2{margin:0;font-size:22px}
 table{width:100%;border-collapse:collapse;margin:8px 0}
 td{padding:3px 0;border-bottom:1px solid var(--line)}
@@ -59,7 +64,7 @@ button.on{border-color:var(--gold);background:#1d2160}
 </head>
 <body>
 <div id="top"><span>💰 <b id="co"></b></span><span>❤ <b id="li"></b></span><span>Vague <b id="wa"></b></span><span id="lvn" style="color:#9fb0ff;font-size:15px"></span><span id="nx"></span></div>
-<div id="main"><canvas id="c" width="1280" height="720"></canvas><div id="side"><aside id="sheet"></aside><div id="xf"></div></div></div>
+<div id="main"><canvas id="c" width="1280" height="720"></canvas><div id="side"><aside id="sheet"></aside><div id="xf"></div><div id="inv"></div></div></div>
 <div id="msg"></div>
 <div id="bar">
   <button id="bb">Météorite (B)</button>
@@ -102,7 +107,7 @@ const DIFF=[
 ];
 // ---------- Niveaux (routes) ----------
 // Une route est une liste de points ; elle peut se croiser, repasser sur elle-même, ou fusionner avec une autre route.
-// Les emplacements sont générés automatiquement (26), sauf pour les niveaux dessinés à la main (Zigzag, Serpent…) qui ont leur propre liste.
+// Les niveaux ont leur propre liste d'emplacements (dessinés à la main) ; sans liste, ils sont générés automatiquement (26 par défaut).
 const LV=[
  {n:'Zigzag',ds:'Le parcours classique : trois lignes droites reliées en Z.',
   routes:[[[-40,140],[1000,140],[1000,360],[280,360],[280,580],[1250,580]]],
@@ -229,25 +234,33 @@ const LV=[
    for(let i=0;i<6;i++)a.push([1215,103+i*97.6]);     // colonne de droite
    for(let i=0;i<10;i++)a.push([182+i*102.6,684]);    // rangée tout en bas
    return a.map(p=>[Math.round(p[0]),Math.round(p[1])])})()},
- // ----- Maps à croisements : l'Aiguilleur légendaire peut s'y poser (emplacements générés automatiquement) -----
- {n:'Delta',ds:'Un seul croisement ouvre trois voies : droit, par le haut ou par le bas. L\u2019Aiguilleur choisit où vont les ennemis.',ns:30,
+ // ----- Maps à croisements : l'Aiguilleur légendaire peut s'y poser (emplacements dessinés à la main) -----
+ {n:'Delta',ds:'Un seul croisement ouvre trois voies : droit, par le haut ou par le bas. L\u2019Aiguilleur choisit où vont les ennemis.',
+  // emplacements espacés, placés selon le plan dessiné (traits rouges)
+  slots:[[209,39],[297,39],[385,39],[474,39],[562,39],[650,39],[739,39],[827,39],[915,39],[130,105],[1066,164],[130,200],[919,240],[642,241],[734,241],[826,241],[364,242],[457,242],[549,242],[272,243],[1066,259],[42,291],[136,291],[69,421],[1060,452],[896,482],[627,483],[717,483],[806,483],[359,484],[448,484],[538,484],[269,485],[127,501],[1068,546],[127,587],[254,671],[341,671],[427,671],[514,671],[601,671],[687,671],[774,671],[860,671],[947,671]],
   routes:[
    [[-40,360],[200,360],[200,110],[1000,110],[1000,360],[1200,360]],
    [[-40,360],[200,360],[1000,360],[1200,360]],
    [[-40,360],[200,360],[200,610],[1000,610],[1000,360],[1200,360]]]},
- {n:'Carrefour',ds:'Deux entrées (gauche et haut) se croisent au centre, puis repartent vers la droite ou vers le bas.',ns:30,
+ {n:'Carrefour',ds:'Deux entrées (gauche et haut) se croisent au centre, puis repartent vers la droite ou vers le bas.',
+  // emplacements espacés, placés selon le plan dessiné (traits rouges)
+  slots:[[550,39],[699,39],[550,119],[700,121],[550,199],[700,203],[60,279],[141,279],[223,279],[305,279],[386,279],[468,279],[550,279],[701,285],[799,286],[893,287],[988,288],[1061,386],[898,439],[570,440],[327,441],[408,441],[489,441],[803,441],[164,442],[245,442],[83,443],[708,443],[1070,466],[568,526],[1078,545],[741,552],[821,552],[900,552],[565,612],[688,681],[783,681],[878,681],[972,681],[1067,681]],
   routes:[
    [[-40,360],[640,360],[1000,360],[1000,620],[1200,620]],
    [[-40,360],[640,360],[640,620],[1200,620]],
    [[640,-40],[640,360],[1000,360],[1000,620],[1200,620]],
    [[640,-40],[640,360],[640,620],[1200,620]]]},
- {n:'Double fourche',ds:'Deux croisements à la suite, chacun avec une voie du haut et une voie du bas : deux Aiguilleurs possibles.',ns:30,
+ {n:'Double fourche',ds:'Deux croisements à la suite, chacun avec une voie du haut et une voie du bas : deux Aiguilleurs possibles.',
+  // emplacements espacés, placés selon le plan dessiné (traits rouges)
+  slots:[[501,116],[406,117],[312,118],[754,127],[848,127],[943,127],[169,203],[1074,212],[629,213],[789,266],[338,276],[916,276],[471,281],[39,283],[169,283],[1074,291],[629,294],[789,361],[337,365],[916,365],[471,372],[623,430],[169,434],[1074,436],[83,438],[916,453],[336,454],[789,455],[471,463],[167,513],[1074,515],[623,519],[938,590],[316,594],[410,597],[857,597],[505,599],[776,603]],
   routes:[
    [[-40,360],[250,360],[250,190],[560,190],[560,360],[700,360],[700,190],[1010,190],[1010,360],[1200,360]],
    [[-40,360],[250,360],[250,190],[560,190],[560,360],[700,360],[700,530],[1010,530],[1010,360],[1200,360]],
    [[-40,360],[250,360],[250,530],[560,530],[560,360],[700,360],[700,190],[1010,190],[1010,360],[1200,360]],
    [[-40,360],[250,360],[250,530],[560,530],[560,360],[700,360],[700,530],[1010,530],[1010,360],[1200,360]]]},
- {n:'Échangeur',ds:'Deux autoroutes parallèles reliées par un pont central : les ennemis peuvent changer de voie à chaque extrémité du pont.',ns:30,
+ {n:'Échangeur',ds:'Deux autoroutes parallèles reliées par un pont central : les ennemis peuvent changer de voie à chaque extrémité du pont.',
+  // emplacements espacés, placés selon le plan dessiné (traits rouges)
+  slots:[[44,86],[135,86],[227,86],[318,86],[409,86],[501,86],[592,86],[683,86],[775,86],[866,86],[957,86],[1063,207],[715,224],[810,224],[905,224],[39,248],[125,248],[210,248],[296,248],[381,248],[467,248],[552,248],[1063,299],[699,316],[918,316],[555,334],[916,408],[699,409],[558,420],[1063,436],[915,500],[712,501],[807,501],[39,506],[126,506],[213,506],[300,506],[387,506],[474,506],[561,506],[1063,528],[44,653],[129,653],[213,653],[298,653],[383,653],[467,653],[552,653],[637,653],[722,653],[806,653],[891,653],[976,653]],
   routes:[
    [[-40,150],[640,150],[1000,150],[1000,360],[1200,360]],
    [[-40,150],[640,150],[640,570],[1000,570],[1000,360],[1200,360]],
@@ -375,7 +388,7 @@ const rwAt=(k,w)=>Math.round(K[k].rw*rwMul(w)*DIFF[g.diff].rw);
 let DX=null;try{DX=JSON.parse(localStorage.getItem('cst-dex'))}catch(e){}
 function fixDx(d){if(!d||!Array.isArray(d.k)||d.k.length!==K.length||!Array.isArray(d.t))return null;return{k:d.k,t:T.map((_,i)=>Math.max(0,d.t[i]|0))}}
 DX=fixDx(DX)||{k:K.map(()=>0),t:T.map(()=>0)};
-let SET={autoWave:true,lv:0,diff:1};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
+let SET={autoWave:true,lv:0,diff:1,invFirst:false};try{Object.assign(SET,JSON.parse(localStorage.getItem('cst-set'))||{})}catch(e){}
 let PROG={best:0,bl:{}};try{Object.assign(PROG,JSON.parse(localStorage.getItem('cst-prog'))||{})}catch(e){}
 if(!PROG.bl||typeof PROG.bl!=='object')PROG.bl={};
 function save(){try{localStorage.setItem('cst-dex',JSON.stringify(DX));localStorage.setItem('cst-set',JSON.stringify(SET));localStorage.setItem('cst-prog',JSON.stringify(PROG))}catch(e){}}
@@ -401,7 +414,7 @@ function applySave(data){
   if(data.game!=null&&(typeof data.game!=='object'||!Array.isArray(data.game.slots)))return false;
   const wasPaused=g.paused;
   const dx=fixDx(data.dex);if(dx)DX=dx;
-  if(data.set&&typeof data.set==='object')SET=Object.assign({autoWave:true,lv:0,diff:1},data.set);
+  if(data.set&&typeof data.set==='object')SET=Object.assign({autoWave:true,lv:0,diff:1,invFirst:false},data.set);
   if(data.prog&&typeof data.prog==='object'){
     PROG={best:Math.max(0,+data.prog.best||0),bl:{}};
     const bl=data.prog.bl&&typeof data.prog.bl==='object'?data.prog.bl:{};
@@ -413,6 +426,18 @@ function applySave(data){
   Object.assign(SET,fileSet);selLv=LV[SET.lv]?SET.lv:0;selDf=DIFF[SET.diff]?SET.diff:1;
   g.paused=wasPaused||g.won;
   save();persistGame();renderStart();return true;
+}
+// Remet les tours d'une sauvegarde sur les emplacements : les emplacements normaux gardent leur rang, les croisements (ajoutés à la fin) aussi,
+// même si le nombre d'emplacements normaux d'une map a changé depuis la sauvegarde.
+function fillSlots(arr,open){
+  const nm=S.filter(s=>!s.j),jc=S.filter(s=>s.j),n0=Math.max(0,arr.length-jc.length);
+  S.forEach(s=>s.t=null);
+  arr.forEach((d,i)=>{
+    const t=mkT(d,open);if(!t)return;
+    let s=i<n0?nm[i]:jc[i-n0];
+    if(!s||s.t||!s.j!==(t.type!==GT))s=(t.type===GT?jc:nm).find(o=>!o.t);
+    if(s)s.t=t;
+  });
 }
 function applyLegacySave(data){
   if(!Array.isArray(data.slots))return false;
@@ -427,7 +452,8 @@ function applyLegacySave(data){
   g.nk=data.nkl>0?w+1+(data.nkl|0)-MYTH_CD:-99;g.cont=w>=WIN_WAVE;
   g.en=[];g.bl=[];g.fx=[];g.q=[];g.cd=0;g.timer=15;g.sel=null;g.over=false;
   g.tier=Math.max(1,data.tier|0);g.xf=[0,1,2].map(i=>mkT(data.xf&&data.xf[i],true));
-  S.forEach((s,i)=>{s.t=mkT(data.slots[i],true)});
+  g.inv=Array(INV_N).fill(null);
+  fillSlots(data.slots,true);
   {const dx=fixDx(data.dex);if(dx)DX=dx}
   save();renderStart();return true;
 }
@@ -442,29 +468,31 @@ function importFile(file,cb){
 const boxPrice=(n=1)=>Math.max(1,Math.round(Math.min(TUNE.boxMax,TUNE.box0+TUNE.boxStep*g.boxes)*(1+(n-1)/10)*(n<g.tier?.5:1)));
 const sellVal=t=>Math.floor(t.inv*.5*(t.fu<g.tier?.5:1));
 const upc=t=>Math.round(TUNE.up0*Math.pow(TUNE.upGrow,t.lvl-1)*(t.type===MY?MYTH_UP:1+.3*T[t.type].rar));
-let g,drag=null,mouse={x:0,y:0},tab='b';const vl={};
+const INV_N=10;
+let g,drag=null,invDrag=null,mouse={x:0,y:0},tab='b';const vl={};
 function say(m){$('msg').textContent=m}
 function reset(){
   const lv=LV[SET.lv]?SET.lv:0,df=DIFF[SET.diff]?SET.diff:1,D=DIFF[df];
-  g={coins:D.coins,lives:D.lives,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,won:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave,lv,diff:df,rc:0,nk:-99,cont:false,tier:1,xf:[null,null,null]};
-  drag=null;setLevel(lv);$('bv').textContent='Vitesse ×1 (V)';
+  g={coins:D.coins,lives:D.lives,wave:0,en:[],bl:[],fx:[],q:[],sel:null,boxes:0,over:false,won:false,timer:15,speed:1,cd:0,paused:false,autoWave:SET.autoWave,lv,diff:df,rc:0,nk:-99,cont:false,tier:1,xf:[null,null,null],inv:Array(INV_N).fill(null)};
+  drag=null;invDrag=null;setLevel(lv);$('bv').textContent='Vitesse ×1 (V)';
   say('Achète une météorite pour obtenir ta première tour.');
 }
 function buyBox(n){
   n=n||1;
   if(g.over||g.paused)return;
-  const free=S.filter(s=>!s.t&&!s.j);
-  if(!free.length)return say('Plus de place : fusionne des tours identiques pour libérer des emplacements.');
+  const free=S.filter(s=>!s.t&&!s.j),ni=g.inv.filter(t=>!t).length;
+  if(!free.length&&!ni)return say('Plus de place (plateau et inventaire pleins) : fusionne des tours identiques pour libérer des emplacements.');
   const p=boxPrice(n);
   if(g.coins<p)return say('Pas assez de pièces pour une météorite'+(n>1?' de fusion '+n:'')+' ('+p+').');
   g.coins-=p;g.boxes++;
-  const fj=S.filter(o=>o.j&&!o.t),wt=T.map((d,i)=>i===GT&&!fj.length?0:d.w); // l'Aiguilleur n'apparaît que s'il reste un croisement libre
+  const fj=S.filter(o=>o.j&&!o.t),wt=T.map((d,i)=>i===GT&&!(JN.length&&(fj.length||ni))?0:d.w); // l'Aiguilleur n'apparaît que sur une map à croisements, s'il reste un croisement libre ou une place d'inventaire
   let r=Math.random()*wt.reduce((a,v)=>a+v,0),ty=0;
   for(let i=0;i<T.length;i++){r-=wt[i];if(r<=0){ty=i;break}}
   if(Math.random()<MYTH_CHANCE)ty=MY;
-  const pl=ty===GT?fj:free,s=pl[Math.floor(Math.random()*pl.length)];
-  s.t={type:ty,fu:n,lvl:1,h:1.6,h0:1.6,cool:0,inv:p,n:0,o:0};
-  g.sel=s;say('La météorite s\u2019ouvre…');
+  const pl=ty===GT?fj:free,t={type:ty,fu:n,lvl:1,h:1.6,h0:1.6,cool:0,inv:p,n:0,o:0};
+  const toInv=ni>0&&(!pl.length||SET.invFirst); // inventaire d'abord (option) ou plus de place sur le plateau
+  if(!toInv){const s=pl[Math.floor(Math.random()*pl.length)];s.t=t;g.sel=s;say('La météorite s\u2019ouvre…');}
+  else{g.inv[g.inv.indexOf(null)]=t;say(pl.length?'La météorite tombe dans l\u2019inventaire…':'Plus de place sur le plateau : la météorite tombe dans l\u2019inventaire…')}
 }
 function upgrade(){
   const s=g.sel,t=s&&s.t;if(!t||t.h>0||g.over)return;
@@ -520,7 +548,7 @@ function xfClick(i){
   if(g.over)return;
   if(g.xf[i]){
     const s=S.find(o=>!o.t&&!o.j===(g.xf[i].type!==GT));
-    if(!s)return say('Plus de place sur le plateau pour reprendre cette tour.');
+    if(!s){const k=g.inv.indexOf(null);if(k<0)return say('Plus de place sur le plateau ni dans l\u2019inventaire pour reprendre cette tour.');g.inv[k]=g.xf[i];g.xf[i]=null;return}
     s.t=g.xf[i];g.xf[i]=null;g.sel=s;return;
   }
   const s=g.sel;
@@ -530,6 +558,63 @@ function transformXf(){
   g.tier++;g.xf=[null,null,null];
   g.fx.push({x:640,y:360,r:20,mx:700,c:'#ffffff',l:.7,m:.7});
   say('Transformation réussie ! Météorite de fusion '+g.tier+' débloquée ; la météorite de fusion '+(g.tier-1)+' passe à moitié prix.');
+}
+// ---------- Inventaire : 10 places partagées (tours normales et Aiguilleur), inactives tant qu'elles y restent ----------
+const invPseudo=i=>({t:g.inv[i],x:640,y:360,j:0});
+function tickInv(dt){
+  g.inv.forEach(t=>{
+    if(!t||!(t.h>0))return;
+    t.h-=dt;
+    if(t.h<=0){
+      say((DX.t[t.type]?'':'Nouvelle tour découverte : ')+T[t.type].n+' (inventaire) !');unlock(t);
+    }
+  });
+}
+function invPlace(i){
+  const t=g.inv[i];if(!t||g.over)return;
+  if(t.h>0)return say('Attends que la météorite soit ouverte.');
+  const s=S.find(o=>!o.t&&!o.j===(t.type!==GT));
+  if(!s)return say(t.type===GT?'Aucun croisement libre pour l\u2019Aiguilleur.':'Plus de place sur le plateau : glisse la tour sur une tour identique pour fusionner, ou clic droit pour la vendre.');
+  s.t=t;g.inv[i]=null;g.sel=s;
+}
+function invStore(s,i){
+  const t=s&&s.t;if(!t||g.over)return;
+  if(t.h>0)return say('Attends que la météorite soit ouverte.');
+  if(i==null||g.inv[i])i=g.inv.indexOf(null);
+  if(i<0)return say('Inventaire plein.');
+  g.inv[i]=t;s.t=null;if(g.sel===s)g.sel=null;
+  say('Tour rangée dans l\u2019inventaire : elle est inactive tant qu\u2019elle y reste.');
+}
+function invClick(i){
+  if(g.over)return;
+  if(g.inv[i])return invPlace(i);
+  const s=g.sel;
+  if(s&&s.t)invStore(s,i);else say('Sélectionne une tour (ou glisse-la) pour la ranger dans l\u2019inventaire.');
+}
+function invSell(i){const t=g.inv[i];if(!t||g.over||t.h>0)return;g.coins+=sellVal(t);g.inv[i]=null}
+function invDrop(i,ev){
+  const t=g.inv[i];if(!t||g.over||t.h>0)return;
+  const el=document.elementFromPoint(ev.clientX,ev.clientY),xs=el&&el.closest&&el.closest('.xs'),is=el&&el.closest&&el.closest('.is');
+  if(xs){const pe=invPseudo(i);putXf(pe,+xs.dataset.i);g.inv[i]=pe.t;return}
+  if(is){const k=+is.dataset.i;if(k!==i){const o=g.inv[k];g.inv[k]=t;g.inv[i]=o}return}
+  if(el!==C)return;
+  const s=slotAt(pos(ev));if(!s)return;
+  if(s.t){const pe=invPseudo(i);fuse(pe,s);g.inv[i]=pe.t;return}
+  if(!!s.j!==(t.type===GT)){say(t.type===GT?'L\u2019Aiguilleur ne se pose que sur un croisement de chemins.':'Cet emplacement de croisement est réservé à l\u2019Aiguilleur.');return}
+  s.t=t;g.inv[i]=null;g.sel=s;
+}
+function invPanel(){
+  const el=$('inv');
+  const sg=g.inv.map(t=>t?t.type+':'+t.fu+':'+t.lvl+(t.h>0?':'+Math.floor((1-t.h/t.h0)*20):''):'-').join('|');
+  if(el.dataset.sg===sg)return;el.dataset.sg=sg;
+  el.innerHTML='<h3>Inventaire ('+g.inv.filter(Boolean).length+'/'+INV_N+')</h3>Les tours qui n\u2019ont plus de place sur le plateau (ou toutes, selon l\u2019option) arrivent ici. Elles sont inactives : clique pour les poser, glisse-les sur une tour identique pour fusionner, clic droit pour vendre.<div class="irow">'+
+   g.inv.map((t,i)=>'<div class="is" data-i="'+i+'" title="'+(t?T[t.type].n+' · F'+t.fu+' · niv. '+t.lvl:'Place libre')+'"><canvas width="64" height="64"></canvas></div>').join('')+'</div>';
+  el.querySelectorAll('.is').forEach((d,i)=>{
+    const t=g.inv[i],c=d.firstChild.getContext('2d');
+    if(t){c.save();c.scale(.85,.85);drawTower(c,38,34,t);c.restore();c.fillStyle='#fff';c.font='bold 12px sans-serif';c.fillText('F'+t.fu,3,13)}
+    d.onmousedown=e=>{if(e.button!==0)return;if(g.inv[i]&&!g.over&&!(g.inv[i].h>0))invDrag={i,moved:false,x0:e.clientX,y0:e.clientY};else invClick(i)};
+    d.oncontextmenu=e=>{e.preventDefault();invSell(i)};
+  });
 }
 function startWave(){
   g.wave++;PROG.best=Math.max(PROG.best,g.wave);{const k=g.lv+':'+g.diff;PROG.bl[k]=Math.max(PROG.bl[k]||0,g.wave)}save();g.timer=12;
@@ -609,6 +694,7 @@ function update(dt){
     [e.x,e.y]=at(e.d,e.rt);
     if(e.d>=TT[e.rt]){e.esc=1;g.lives-=d.life||1;if(g.lives<=0){g.lives=0;g.over=true;save();say('Le portail est tombé. Clique sur le jeu ou appuie sur R pour rejouer.')}}
   }
+  tickInv(dt);
   for(const s of S){
     const t=s.t;if(!t)continue;
     if(t.h>0){
@@ -778,6 +864,7 @@ function draw(){
     else{X.strokeStyle=f.c;X.globalAlpha=1-p;X.lineWidth=3;X.beginPath();X.arc(f.x,f.y,f.r+(f.mx-f.r)*p,0,7);X.stroke();X.globalAlpha=1}
   }
   if(drag&&drag.moved&&drag.s.t)drawTower(X,mouse.x,mouse.y,drag.s.t,true);
+  if(invDrag&&invDrag.moved&&g.inv[invDrag.i])drawTower(X,mouse.x,mouse.y,g.inv[invDrag.i],true);
   if(g.won){
     X.fillStyle='rgba(8,10,28,.82)';X.fillRect(0,0,1280,720);
     X.fillStyle='#ffd84a';X.textAlign='center';X.font='bold 56px "Trebuchet MS",sans-serif';X.fillText('Victoire !',640,320);
@@ -829,7 +916,7 @@ function hud(){
   const U=g.tier;
   if(U<2){$('bb').textContent='Météorite '+boxPrice(1)+'💰 (B)';$('bu').style.display='none'}
   else{$('bb').textContent='Météorite F'+U+' · '+boxPrice(U)+'💰 (B)';$('bu').style.display='';$('bu').textContent='Météorite F'+(U-1)+' · '+boxPrice(U-1)+'💰 (F)'}
-  xfPanel();
+  xfPanel();invPanel();
   const mb=mythBest(),bn=$('bn');bn.style.display=mb?'':'none';
   if(mb){const L=nukeLeft();bn.textContent=L>0?'☄ Nuke dans '+L+' vague'+(L>1?'s':''):'☄ Nuke '+Math.round(nukePct(mb.lvl)*100)+' % (N)';bn.disabled=L>0||!g.en.length;bn.classList.toggle('on',L===0&&g.en.length>0)}
   sheet();
@@ -853,12 +940,16 @@ C.addEventListener('mousedown',ev=>{
 addEventListener('mousemove',ev=>{
   mouse=pos(ev);
   if(drag&&Math.hypot(mouse.x-drag.x0,mouse.y-drag.y0)>8)drag.moved=true;
+  if(invDrag&&Math.hypot(ev.clientX-invDrag.x0,ev.clientY-invDrag.y0)>8)invDrag.moved=true;
 });
 addEventListener('mouseup',ev=>{
+  if(invDrag){const d=invDrag;invDrag=null;if(d.moved)invDrop(d.i,ev);else invClick(d.i);return}
   if(!drag)return;
   const d=drag;drag=null;
   const el=document.elementFromPoint(ev.clientX,ev.clientY),xs=el&&el.closest&&el.closest('.xs');
   if(d.moved&&xs){putXf(d.s,+xs.dataset.i);return}
+  const is=el&&el.closest&&el.closest('.is');
+  if(d.moved&&is){invStore(d.s,+is.dataset.i);return}
   const s=slotAt(pos(ev));
   if(!d.moved||!s||s===d.s){if(!d.moved&&g.sel===d.s&&d.s.t.type===GT)rotGT();g.sel=d.s;return}
   if(s.t){fuse(d.s,s);return}
@@ -914,6 +1005,7 @@ addEventListener('keydown',ev=>{
 });
 // ---------- Menu pause : bestiaire et tours ----------
 function setTab(t){tab=t;renderDex()}
+function toggleInvFirst(){SET.invFirst=!SET.invFirst;save();renderDex()}
 function toggleAuto(){g.autoWave=!g.autoWave;SET.autoWave=g.autoWave;save();renderDex()}
 function openDex(t){g.paused=true;save();if(t)tab=t;$('dex').classList.add('on');renderDex()}
 function closeDex(){g.paused=false;$('dex').classList.remove('on')}
@@ -925,11 +1017,11 @@ function renderDex(){
   if(tab==='r'){
     $('cards').innerHTML='<div style="grid-column:1/-1;max-width:720px;line-height:1.6">'+
      '<h3>But du jeu</h3><p>Empêche les Vides d\u2019atteindre le portail doré. Chaque ennemi qui passe te coûte des vies (davantage pour les boss) ; à 0 vie, la partie est terminée.</p>'+
-     '<h3>Météorites</h3><p>Achète une météorite avec tes pièces pour obtenir une tour aléatoire sur un emplacement libre (prix croissant). Sa rareté détermine ses chances d\u2019apparition : Commun et Peu commun sont fréquents, Rare l\u2019est moins, Épique et Légendaire sont exceptionnelles.</p>'+
+     '<h3>Météorites</h3><p>Achète une météorite avec tes pièces pour obtenir une tour aléatoire sur un emplacement libre, ou dans l\u2019inventaire s\u2019il n\u2019y en a plus (prix croissant). Sa rareté détermine ses chances d\u2019apparition : Commun et Peu commun sont fréquents, Rare l\u2019est moins, Épique et Légendaire sont exceptionnelles.</p>'+
      '<h3>Améliorer</h3><p>Clique sur une tour posée pour afficher sa fiche à droite : dégâts, rayon d\u2019action, cadence et pouvoir spécial. Le bouton Améliorer augmente son niveau contre des pièces, jusqu\u2019à une limite.</p>'+
      '<h3>Fusionner</h3><p>Glisse une tour sur une autre tour identique (même type, même fusion) pour les fusionner. Cela consomme les deux tours et en donne une seule : fusion +1 et une limite de niveau plus haute (le niveau est conservé ; +1 seulement si les deux tours sont au niveau max, jamais en Difficile). Il n\u2019y a pas de limite de fusion.</p>'+
      '<h3>Transformation</h3><p>Dans le panneau Transformation, place 3 tours de fusion 2 : elles sont consommées et débloquent un bouton de météorites de fusion 2 (touche B). Le bouton d\u2019origine passe à moitié prix (la revente des tours de ce niveau aussi). Avec 3 tours de fusion 3, tu débloques la fusion 3, et le bouton à moitié prix devient la fusion 2, et ainsi de suite à l\u2019infini.</p>'+
-     '<h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4.</p>'+
+     '<h3>Inventaire</h3><p>L\u2019inventaire a 10 places, partagées entre les tours normales et l\u2019Aiguilleur. Une nouvelle tour y arrive quand il n\u2019y a plus de place pour elle sur le plateau (plus d\u2019emplacement libre, ou plus de croisement libre pour l\u2019Aiguilleur), ou dès qu\u2019il reste une place si l\u2019option « Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire » est cochée dans les paramètres. La météorite s\u2019y ouvre comme sur le plateau. Les tours rangées sont inactives : clique dessus pour les poser sur le plateau, glisse-les sur une tour identique pour fusionner, ou clic droit pour les vendre. Tu peux aussi y ranger une tour du plateau en la glissant dessus.</p><h3>Vitesse</h3><p>Le bouton Vitesse (touche V) alterne entre ×1, ×2, ×3 et ×4.</p>'+
      '<h3>Tour mythique</h3><p>Chaque météorite a 0,1 % de chances de contenir le Néant. Il ne tire pas : il ajoute un bouton Nuke (touche N) qui retire une part des PV max de tous les ennemis à l\u2019écran, de 20 % au niveau 1 jusqu\u2019à 100 % au niveau max (niveau 9, fusion 4) ; les boss subissent moitié moins. Utilisable une fois toutes les 3 vagues. Comme les autres tours, il se fusionne avec un Néant identique pour monter sa limite de niveau.</p>'+
      '<h3>Tour légendaire : l\u2019Aiguilleur</h3><p>Il ne tire pas. Sur les maps à croisements (Îlot, Delta, Carrefour, Double fourche, Échangeur), la météorite peut le poser automatiquement sur un croisement libre. Sa flèche indique la branche vers laquelle il attire une part des ennemis qui passent (15 % au niveau 1, jusqu\u2019à 95 %). Clique sur la tour (ou touche T) pour la tourner ; glisse-la vers un autre croisement pour la déplacer. Chaque ennemi n\u2019est attiré qu\u2019une fois par croisement.</p>'+
      '<h3>Vagues</h3><p>Les vagues arrivent les unes après les autres ; un boss apparaît toutes les 5 vagues. Jusqu\u2019à la vague 30 la difficulté monte vite ; ensuite elle grimpe plus doucement et les récompenses suivent, pour que tu puisses continuer très loin. Dans les Options, tu peux choisir si la vague suivante démarre automatiquement après un délai, ou seulement quand tu appuies sur « Vague suivante » (ou Espace).</p>'+
@@ -942,6 +1034,8 @@ function renderDex(){
   if(tab==='o'){
     h='<div class="opt"><input type="checkbox" id="autoChk" '+(g.autoWave?'checked':'')+' onchange="toggleAuto()"><label for="autoChk">Lancer les vagues automatiquement après un délai</label></div>'+
      '<p style="margin-top:0">Si décoché, aucune vague ne démarre tant que tu n\u2019appuies pas sur « Vague suivante » (ou Espace).</p>'+
+     '<div class="opt"><input type="checkbox" id="invChk" '+(SET.invFirst?'checked':'')+' onchange="toggleInvFirst()"><label for="invChk">Les nouvelles tours arrivent d\u2019abord dans l\u2019inventaire</label></div>'+
+     '<p style="margin-top:0">Si coché, une météorite achetée tombe dans l\u2019inventaire tant qu\u2019il reste une place, puis sur le plateau. Si décoché, elle tombe sur le plateau, puis dans l\u2019inventaire quand il n\u2019y a plus de place pour elle.</p>'+
      '<div class="row"><button onclick="exportSave()">Exporter la sauvegarde (.txt)</button><button onclick="document.getElementById(&quot;impFile&quot;).click()">Importer une sauvegarde</button></div>'+
      '<input type="file" id="impFile" accept=".txt,.json" style="display:none">'+
      '<div id="impMsg" class="hint"></div>'+
@@ -991,7 +1085,7 @@ const GAME_KEY='cst-game';
 function snapshot(){
   return{v:1,lv:g.lv,diff:g.diff,coins:g.coins,lives:g.lives,wave:g.wave,boxes:g.boxes,tier:g.tier,autoWave:g.autoWave,
     nk:g.nk,cont:g.cont,won:g.won,timer:g.timer,cd:g.cd,rc:g.rc,q:g.q,en:g.en.filter(e=>e.hp>0&&!e.dead&&!e.esc),
-    slots:S.map(s=>towerData(s.t)),xf:g.xf.map(towerData)};
+    slots:S.map(s=>towerData(s.t)),xf:g.xf.map(towerData),inv:g.inv.map(towerData)};
 }
 // État de la partie tel qu'il est enregistré (null quand il n'y a pas de partie à reprendre : partie perdue)
 function gameState(){return g.over?null:snapshot()}
@@ -1011,12 +1105,13 @@ function restoreGame(d){
   reset();selLv=SET.lv;selDf=SET.diff;
   g.coins=+d.coins||0;g.lives=d.lives>0?+d.lives:DIFF[g.diff].lives;g.wave=Math.max(0,d.wave|0);g.boxes=Math.max(0,d.boxes|0);
   g.tier=Math.max(1,d.tier|0);g.xf=[0,1,2].map(i=>mkT(d.xf&&d.xf[i]));
+  g.inv=Array.from({length:INV_N},(_,i)=>mkT(d.inv&&d.inv[i]));
   g.autoWave=d.autoWave!==false;SET.autoWave=g.autoWave;
   g.nk=Number.isFinite(d.nk)?d.nk:-99;g.cont=!!d.cont;g.won=!!d.won;
   g.timer=Number.isFinite(d.timer)?d.timer:12;g.cd=+d.cd||0;g.rc=d.rc|0;
   g.q=(Array.isArray(d.q)?d.q:[]).filter(k=>K[k]);
   g.en=(Array.isArray(d.en)?d.en:[]).filter(e=>e&&K[e.k]&&RT[e.rt]&&e.hp>0&&e.mx>0);
-  S.forEach((s,i)=>{s.t=mkT(d.slots[i])});
+  fillSlots(d.slots,false);
   g.paused=g.won;
   return true;
 }

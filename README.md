@@ -11,6 +11,14 @@ Des créatures venues du Vide avancent le long d'un chemin vers ton portail. Pla
 ### Météorites
 Achète une météorite avec tes pièces pour obtenir une tour aléatoire sur un emplacement libre. Le prix augmente à chaque achat. La rareté d'une tour détermine ses chances d'apparition : Commun et Peu commun sortent souvent, Rare plus rarement, Épique et Légendaire sont exceptionnelles.
 
+### Inventaire
+Un inventaire de **10 places**, partagées entre les tours normales et l'Aiguilleur, s'affiche sous le panneau Transformation. Une nouvelle tour y arrive **quand il n'y a plus de place pour elle sur le plateau** (plus d'emplacement libre, ou plus de croisement libre pour l'Aiguilleur). L'option **« Les nouvelles tours arrivent d'abord dans l'inventaire »** (menu Options, enregistrée avec les réglages) la fait arriver dans l'inventaire dès qu'il reste une place. Dans les deux cas, la météorite s'ouvre dans l'inventaire avec son animation, et la tour est inactive et intouchable tant qu'elle n'est pas ouverte. Si le plateau et l'inventaire sont pleins, la météorite ne peut plus être achetée.
+- Les tours rangées sont **inactives** (elles ne tirent pas, le Nuke du Néant n'y fonctionne pas).
+- **Clic** sur une tour de l'inventaire : elle est posée sur un emplacement libre du plateau (un croisement pour l'Aiguilleur).
+- **Glisser** une tour du plateau sur l'inventaire pour la ranger ; glisser une tour de l'inventaire sur une tour identique du plateau pour les fusionner, sur un emplacement libre pour la poser, ou dans une case de Transformation.
+- **Clic droit** sur une tour de l'inventaire : la vendre.
+- L'inventaire est inclus dans la sauvegarde automatique et dans le fichier d'export.
+
 ### Améliorer une tour
 Clique sur une tour posée : sa fiche s'affiche à droite du jeu, avec ses dégâts, son rayon d'action, sa cadence et son pouvoir spécial. Le bouton **Améliorer** augmente son niveau contre des pièces, jusqu'à une limite qui dépend de sa fusion.
 
@@ -53,7 +61,7 @@ Les vagues d'ennemis se suivent, avec un boss toutes les 5 vagues. L'écran de v
 Les réglages se trouvent dans l'objet `TUNE` du fichier `index.html` (`softW`, `hpGrow2`, `rwGrow2`, `cnt2`). Dans le menu Options, tu peux choisir si la vague suivante démarre automatiquement ou seulement quand tu appuies sur **Vague suivante** (ou Espace).
 
 ### Niveaux et difficultés
-Quatorze niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, Labyrinthe, Entrelacs, Grand détour, puis les maps à croisements Delta, Carrefour, Double fourche et Échangeur), chacun avec sa route et ses propres emplacements de tours (de 26 à 51 selon le niveau ; ceux des quatre dernières maps sont générés automatiquement). Trois difficultés :
+Quatorze niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlot, Labyrinthe, Entrelacs, Grand détour, puis les maps à croisements Delta, Carrefour, Double fourche et Échangeur), chacun avec sa route et ses propres emplacements de tours (de 26 à 53 selon le niveau, tous dessinés à la main). Trois difficultés :
 
 | | Facile | Moyen | Difficile |
 |---|---|---|---|
@@ -66,9 +74,9 @@ Quatorze niveaux (Zigzag, Serpent, Spirale, Croisement, Demi-tour, Fourche, Îlo
 ### Sauvegarde
 Le fichier de sauvegarde (`.txt`, exporté depuis le menu Options) contient **exactement** ce que le navigateur enregistre automatiquement, et inversement :
 - l'**index** (bestiaire et tours débloquées) ;
-- les **réglages** (vagues automatiques, niveau et difficulté choisis) ;
+- les **réglages** (vagues automatiques, tours d'abord dans l'inventaire, niveau et difficulté choisis) ;
 - les **records** de vague par niveau et par difficulté ;
-- la **partie en cours**, au complet : pièces, vies, vague, ennemis à l'écran et file de la vague, tours (même celles dont la météorite n'est pas encore ouverte), cases de Transformation, palier de fusion, compte à rebours du Nuke.
+- la **partie en cours**, au complet : pièces, vies, vague, ennemis à l'écran et file de la vague, tours (même celles dont la météorite n'est pas encore ouverte), inventaire, cases de Transformation, palier de fusion, compte à rebours du Nuke.
 
 Ta partie en cours est sauvegardée automatiquement dans le navigateur : rafraîchir la page ne la supprime pas, et elle est reprise là où tu l'avais laissée. Elle est effacée quand le portail tombe.
 
